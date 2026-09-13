@@ -8,10 +8,9 @@
   <meta name="theme-color" content="#f5fbfb" />
   <title>Thauma — красивая цифровая упаковка</title>
   <meta name="description" content="Thauma — персональные цифровые подарки и шесть премиальных сцен открытия." />
-  <script type="module" crossorigin src="./assets/main-DQHuCxJE.js"></script>
-  <link rel="modulepreload" crossorigin href="./assets/experience-CzXlq74z.js">
-  <link rel="stylesheet" crossorigin href="./assets/experience-CizEI3pJ.css">
-  <link rel="stylesheet" crossorigin href="./assets/main-BZ9fCKvA.css">
+  <script type="module" crossorigin src="./assets/main-CKygzyMp.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/scenes-CZ7t5vTa.js">
+  <link rel="stylesheet" crossorigin href="./assets/main-S7NIwtRs.css">
 </head>
 <body>
 <header class="header">
@@ -29,7 +28,7 @@
       <div class="hero-note"><span></span> PDF, JPG, PNG и WEBP · светлая и тёмная темы</div>
     </div>
     <div class="hero-art" aria-hidden="true">
-      <img id="heroScene" class="hero-scene" src="media/envelope-copper-cutout.webp" width="1024" height="683" fetchpriority="high" alt="">
+      <img id="heroScene" class="hero-scene" src="media/hero-ru-light.png" width="900" height="1000" fetchpriority="high" alt="">
     </div>
   </section>
 
@@ -47,9 +46,6 @@
     <div class="design-grid">
       <button class="design-card active" data-design="classic"><div class="design-preview teal-preview"><div class="tiny-box classic-box"></div></div><div><b>Классический подарок</b><span>Коробка с лентой и мягким светом</span></div></button>
       <button class="design-card" data-design="envelope"><div class="design-preview envelope-preview"><div class="tiny-envelope"><i></i></div></div><div><b>Конверт с печатью</b><span>Конверт с восковой печатью</span></div></button>
-      <button class="design-card" data-design="envelope-gold"><div class="design-preview"><img src="media/envelope-gold-reference.jpeg" width="600" height="470" alt="Графит и золото" loading="lazy"></div><div><b>Графит и золото</b><span>Графитовая бумага и золотая печать</span></div></button>
-      <button class="design-card" data-design="envelope-copper"><div class="design-preview"><img src="media/envelope-copper-reference.jpeg" width="600" height="470" alt="Чёрный и медь" loading="lazy"></div><div><b>Чёрный и медь</b><span>Чёрная бумага, медная печать и окантовка</span></div></button>
-      <button class="design-card" data-design="scroll"><div class="design-preview"></div><div><b>Свиток с поздравлением</b><span>Разверните личное поздравление</span></div></button>
       <button class="design-card" data-design="jewelry"><div class="design-preview jewelry-preview"><div class="tiny-jewelry"><i></i></div></div><div><b>Шкатулка</b><span>Премиальная шкатулка с подсветкой</span></div></button>
       <button class="design-card" data-design="balloon"><div class="design-preview balloon-preview"><div class="tiny-balloon"><i></i></div></div><div><b>Шар-сюрприз</b><span>Сфера с золотыми частицами</span></div></button>
       <button class="design-card" data-design="him"><div class="design-preview black-preview"><div class="tiny-box him-box"></div></div><div><b>Подарок для него</b><span>Матовая чёрная коробка</span></div></button>
@@ -73,7 +69,6 @@
           <label><span>Название</span><input id="giftTitle" maxlength="60" value="Подарочный сертификат" required /></label>
           <div class="two-cols"><label><span>Сумма или подпись</span><input id="giftAmount" maxlength="30" value="5 000 ₽" /></label><label><span>Дизайн</span><select id="giftDesign"><option value="classic">Классический подарок</option><option value="envelope">Конверт с печатью</option><option value="jewelry">Шкатулка</option><option value="balloon">Шар-сюрприз</option><option value="him">Подарок для него</option><option value="case">Футуристичный кейс</option></select></label></div>
           <label><span>Сообщение</span><textarea id="giftMessage" maxlength="220" required>Для тебя ✨ Пусть этот подарок станет началом чего-то прекрасного.</textarea></label>
-          <fieldset class="audio-editor"><legend data-i18n="audioTitle">Голос или музыка</legend><p id="audioStatus" role="status"></p><div class="audio-buttons"><button id="recordAudio" class="button secondary" type="button">Записать голос</button><label class="button secondary"><span data-i18n="audioUpload">Выбрать аудиофайл</span><input id="audioFile" type="file" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm" hidden></label><button id="removeAudio" class="button secondary" type="button" data-i18n="removeAudio" hidden>Удалить аудио</button></div><audio id="audioPreview" controls preload="metadata" hidden></audio></fieldset>
           <button class="button primary full" type="submit"><span>Создать подарок</span><b>→</b></button>
         </div>
       </form>
