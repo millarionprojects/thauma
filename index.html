@@ -85,4 +85,15 @@
 </main>
 <footer><a class="brand" href="#top"><span class="brand-mark"><svg class="tau-mark" viewBox="0 0 88 96" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7 29C14 9 27 12 38 15C53 19 67 20 80 8C78 23 69 31 53 27L31 24C20 21 13 23 7 29ZM47 24L60 25C51 37 42 57 45 69C47 78 57 75 65 67C61 86 41 93 32 80C23 66 35 39 47 24Z"/></svg></span><span>Thauma</span></a><p>Цифровые подарки с настоящим моментом открытия.</p></footer>
 <div id="toast" class="toast" role="status"></div>
+<script type="module">
+  const keepCopperHero = () => {
+    const hero = document.getElementById('heroScene');
+    const demo = document.querySelector('.hero-actions a.secondary');
+    if (hero) hero.src = 'media/envelope-copper-cutout.webp';
+    if (demo) demo.href = 'open.html?demo=1&design=envelope-copper';
+  };
+  keepCopperHero();
+  document.getElementById('themeToggle')?.addEventListener('click', () => queueMicrotask(keepCopperHero));
+  document.getElementById('langToggle')?.addEventListener('click', () => queueMicrotask(keepCopperHero));
+</script>
 </body></html>
