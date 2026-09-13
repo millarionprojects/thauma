@@ -1,23 +1,4 @@
 let locked=false;
-
-// Thauma accepts both speech and music. iPhone/Safari's default echo and noise
-// processing can chop audio played from a nearby speaker, so request the least
-// processed microphone signal available. Unsupported constraints are ignored.
-const media=navigator.mediaDevices;
-if(media?.getUserMedia&&!media.__thaumaNaturalCapture){
- const original=media.getUserMedia.bind(media);
- try{
-  media.getUserMedia=constraints=>{
-   if(constraints?.audio){
-    const requested=constraints.audio===true?{}:constraints.audio;
-    constraints={...constraints,audio:{...requested,echoCancellation:false,noiseSuppression:false,autoGainControl:false}};
-   }
-   return original(constraints);
-  };
-  media.__thaumaNaturalCapture=true;
- }catch{}
-}
-
 export function lockPlayback(){
  locked=true;
  document.querySelectorAll('audio,video').forEach(player=>player.pause());
