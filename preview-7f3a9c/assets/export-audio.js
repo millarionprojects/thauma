@@ -13,7 +13,9 @@ export function mountAudioExport(gift,clearPrepared){
  audio.addEventListener('change',()=>{clearPrepared();refresh();});
  personal.addEventListener('change',refresh);refresh();
 }
-export function recordingLength(animationSeconds,audioSeconds=0){return Math.max(animationSeconds+1.5,audioSeconds+.2);}
+// Keep a guaranteed visual tail after the opening. The previous 1.5 s tail could
+// finish before the polished envelope handoff completed on iPhone.
+export function recordingLength(animationSeconds,audioSeconds=0){return Math.max(animationSeconds+3.25,audioSeconds+1.0);}
 export async function prepareSoundtrack(blob,enabled,signal){
  if(!enabled||!blob)return null;
  const Context=window.AudioContext||window.webkitAudioContext;
@@ -22,14 +24,12 @@ export async function prepareSoundtrack(blob,enabled,signal){
  async function close(){if(closed)return;closed=true;try{source?.stop();}catch{}source?.disconnect();destination?.stream.getTracks().forEach(track=>track.stop());if(context.state!=='closed')await context.close();}
  const abort=()=>{close().catch(()=>{});};signal?.addEventListener('abort',abort,{once:true});
  try{
-  // Called directly by the export button; resume during its user gesture.
   await context.resume();
   const bytes=await blob.arrayBuffer();if(signal?.aborted)throw Error('Aborted');
   const buffer=await context.decodeAudioData(bytes);if(signal?.aborted)throw Error('Aborted');
   if(!Number.isFinite(buffer.duration)||buffer.duration<=0)throw Error('Empty audio');
   source=context.createBufferSource();source.buffer=buffer;
   destination=context.createMediaStreamDestination();source.connect(destination);
-  // Only the attached recording reaches MediaRecorder; never request a microphone.
   return {duration:buffer.duration,track:destination.stream.getAudioTracks()[0],start(){source.start();},async close(){signal?.removeEventListener('abort',abort);await close();}};
  }catch(error){signal?.removeEventListener('abort',abort);await close();throw error;}
 }
