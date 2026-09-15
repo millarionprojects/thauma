@@ -38,9 +38,9 @@ function cloneVisual(source){
 
 function startRectFor(design,sceneRect,aspect){
   const envelope=design.startsWith('envelope');
-  const widthRatio=envelope?.41:design==='scroll'?.47:design==='balloon'?.38:.39;
-  const centerY=envelope?.43:design==='scroll'?.45:.48;
-  const width=Math.min(sceneRect.width*widthRatio,envelope?220:230),height=width/aspect;
+  const widthRatio=envelope?.84:design==='scroll'?.47:design==='balloon'?.38:.39;
+  const centerY=envelope?.38:design==='scroll'?.45:.48;
+  const width=envelope?sceneRect.width*widthRatio:Math.min(sceneRect.width*widthRatio,230),height=width/aspect;
   return {left:sceneRect.left+(sceneRect.width-width)/2,top:sceneRect.top+sceneRect.height*centerY-height/2,width,height};
 }
 
@@ -67,16 +67,16 @@ function beginSeamlessHandoff(){
   preview.style.opacity='0';
   document.body.append(visual);
 
-  // The 3D/canvas certificate is visible for the first instant, then gently gives
-  // way to the DOM clone. This prevents the double-card/ghost frame seen on iPhone.
-  sceneCanvas.style.transition='opacity 180ms ease';
-  bridgeTimer=setTimeout(()=>{if(sceneCanvas)sceneCanvas.style.opacity='0';},90);
+  // The rendered scene gives way to the exact certificate clone with a very short
+  // crossfade, avoiding the double-card ghost that was visible on iPhone.
+  sceneCanvas.style.transition='opacity 160ms ease';
+  bridgeTimer=setTimeout(()=>{if(sceneCanvas)sceneCanvas.style.opacity='0';},70);
 
   const animation=visual.animate([
-    {left:start.left+'px',top:start.top+'px',width:start.width+'px',height:start.height+'px',transform:'translate3d(0,0,0) rotate(-.25deg)'},
-    {offset:.55,transform:'translate3d(0,-2px,0) rotate(-.08deg)'},
-    {left:end.left+'px',top:end.top+'px',width:end.width+'px',height:end.height+'px',transform:'translate3d(0,0,0) rotate(0deg)'}
-  ],{duration:680,easing:'cubic-bezier(.2,.72,.25,1)',fill:'forwards'});
+    {left:start.left+'px',top:start.top+'px',width:start.width+'px',height:start.height+'px',transform:'translate3d(0,0,0)'},
+    {offset:.58,transform:'translate3d(0,-1px,0)'},
+    {left:end.left+'px',top:end.top+'px',width:end.width+'px',height:end.height+'px',transform:'translate3d(0,0,0)'}
+  ],{duration:620,easing:'cubic-bezier(.2,.72,.25,1)',fill:'forwards'});
   animation.onfinish=cleanupBridge;
   animation.oncancel=cleanupBridge;
 }
