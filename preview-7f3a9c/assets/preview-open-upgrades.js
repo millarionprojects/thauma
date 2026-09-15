@@ -1,6 +1,7 @@
 const stage=document.getElementById('giftStage');
 const sceneCanvas=document.getElementById('sceneCanvas');
 const preview=document.getElementById('certificatePreview');
+const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 let lastState=stage?.dataset.state||'';
 let bridge=null;
 let pdfBusy=false;
@@ -35,7 +36,7 @@ function cloneVisual(source){
 }
 
 function beginSeamlessHandoff(){
-  if(!stage||!sceneCanvas||!preview||bridge)return;
+  if(reducedMotion.matches||!stage||!sceneCanvas||!preview||bridge)return;
   const source=preview.querySelector('img,canvas,.demo-certificate');
   if(!source)return;
   const visual=cloneVisual(source);
