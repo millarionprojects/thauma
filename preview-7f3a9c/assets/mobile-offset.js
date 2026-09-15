@@ -18,3 +18,18 @@ window.addEventListener('resize',()=>{update();keepFocusedLabelVisible();});
 window.visualViewport?.addEventListener('resize',keepFocusedLabelVisible);
 // Safari's automatic focus scroll can follow the focus event.
 document.addEventListener('focusin',()=>setTimeout(keepFocusedLabelVisible,320));
+
+// Preview-only UX: after a gift is created, immediately open the created gift.
+// The production root remains untouched while this isolated preview is tested.
+const resultPanel=document.getElementById('resultPanel');
+if(resultPanel){
+  let redirecting=false;
+  const observer=new MutationObserver(()=>{
+    if(redirecting)return;
+    const link=resultPanel.querySelector('.result-ready a.button.primary[href*="open.html?id="]');
+    if(!link)return;
+    redirecting=true;
+    requestAnimationFrame(()=>{ location.href=link.href; });
+  });
+  observer.observe(resultPanel,{childList:true,subtree:true});
+}
