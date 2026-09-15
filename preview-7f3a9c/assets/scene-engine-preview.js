@@ -26,6 +26,14 @@ function polishMaterials(root,design){
   if(design==='jewelry') root?.scale?.setScalar?.(1.045);
 }
 
+function applyFinalFocus(card,p,baseScale={x:1,y:1,z:1},amount=.16){
+  if(!card)return;
+  const focus=smooth(p,.93,1),scale=1+amount*focus;
+  card.scale.set(baseScale.x*scale,baseScale.y*scale,baseScale.z*scale);
+  card.position.z+=.28*focus;
+  card.position.y-=.08*focus;
+}
+
 function findBoxParts(rig){
   const card=rig.card;
   const groups=(rig.g?.children||[]).filter(node=>node!==card&&!node.isMesh&&node.children?.length);
@@ -65,20 +73,21 @@ function patchBoxRig(rig,design){
       const safeY=design==='him'?1.46:1.58;
       const finalY=design==='him'?2.16:2.22;
       const finalZ=design==='him'?.82:.78;
-      card.position.set(mix(cardBase.x,.1*present,present),mix(cardBase.y,safeY,lift),mix(cardBase.z,.015,lift));
+      card.position.set(mix(cardBase.x,.1,present),mix(cardBase.y,safeY,lift),mix(cardBase.z,.015,lift));
       if(p>=liftEnd){
         card.position.y=mix(safeY,finalY,present);
         card.position.z=mix(.015,finalZ,present);
       }
       card.rotation.set(mix(-Math.PI/2,-.13,present),mix(0,-.055,present),.018*Math.sin(present*Math.PI));
       card.visible=p>liftStart-.08;
+      applyFinalFocus(card,p,{x:cardBase.sx,y:cardBase.sy,z:cardBase.sz},.17);
     }
   };
 }
 
 function patchJewelryRig(rig){
   const original=rig.update.bind(rig),card=rig.card;
-  const cardBase=card?{x:card.position.x,y:card.position.y,z:card.position.z}:null;
+  const cardBase=card?{x:card.position.x,y:card.position.y,z:card.position.z,sx:card.scale.x,sy:card.scale.y,sz:card.scale.z}:null;
   rig.update=(p,time)=>{
     original(p,time);
     if(!card||!cardBase)return;
@@ -87,12 +96,13 @@ function patchJewelryRig(rig){
     if(p>=.76){card.position.y=mix(safeY,1.5,present);card.position.z=mix(.025,.82,present);}
     card.rotation.set(mix(-Math.PI/2,-.15,present),mix(0,-.04,present),.012*Math.sin(present*Math.PI));
     card.visible=p>.5;
+    applyFinalFocus(card,p,{x:cardBase.sx,y:cardBase.sy,z:cardBase.sz},.15);
   };
 }
 
 function patchCaseRig(rig){
   const original=rig.update.bind(rig),card=rig.card;
-  const cardBase=card?{x:card.position.x,y:card.position.y,z:card.position.z}:null;
+  const cardBase=card?{x:card.position.x,y:card.position.y,z:card.position.z,sx:card.scale.x,sy:card.scale.y,sz:card.scale.z}:null;
   const glow=[];
   rig.g?.traverse?.(node=>{
     if(!node.material)return;
@@ -111,6 +121,7 @@ function patchCaseRig(rig){
     if(p>=.82){card.position.y=mix(safeY,1.58,present);card.position.z=mix(.02,.94,present);}
     card.rotation.set(mix(-Math.PI/2,-.1,present),mix(0,-.025,present),.01*Math.sin(present*Math.PI));
     card.visible=p>.56;
+    applyFinalFocus(card,p,{x:cardBase.sx,y:cardBase.sy,z:cardBase.sz},.16);
   };
 }
 
@@ -126,10 +137,10 @@ function patchBalloonRig(rig){
     original(p,time);
     const reveal=smooth(p,.43,.86);
     if(card){
-      const scale=mix(.84,.98,reveal);
+      const focus=smooth(p,.93,1),scale=mix(.84,.98,reveal)*(1+.13*focus);
       card.scale.setScalar(scale);
-      card.position.y=mix(2.07,2.24,reveal);
-      card.position.z=mix(.12,.62,reveal);
+      card.position.y=mix(2.07,2.24,reveal)-.06*focus;
+      card.position.z=mix(.12,.62,reveal)+.24*focus;
       card.rotation.x=mix(-.03,-.012,reveal);
       card.rotation.y=mix(-.04,0,reveal);
       card.rotation.z=mix(-.025,0,reveal);
