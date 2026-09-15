@@ -46,20 +46,21 @@ function findBoxParts(rig){
 function patchBoxRig(rig,design){
   const original=rig.update.bind(rig),card=rig.card,{lid,ribbon,bow}=findBoxParts(rig);
   const lidStart=lid?{x:lid.position.x,y:lid.position.y,z:lid.position.z,rx:lid.rotation.x,ry:lid.rotation.y,rz:lid.rotation.z}:null;
-  const bowScale=bow?{x:bow.scale.x,y:bow.scale.y,z:bow.scale.z}:null;
+  const ribbonBase=ribbon?{sx:ribbon.scale.x,sy:ribbon.scale.y,sz:ribbon.scale.z,rz:ribbon.rotation.z}:null;
+  const bowBase=bow?{sx:bow.scale.x,sy:bow.scale.y,sz:bow.scale.z,rz:bow.rotation.z}:null;
   const cardBase=card?{x:card.position.x,y:card.position.y,z:card.position.z,sx:card.scale.x,sy:card.scale.y,sz:card.scale.z}:null;
   rig.update=(p,time)=>{
     original(p,time);
     const release=smooth(p,.06,design==='him'?.32:.27);
-    if(ribbon){
+    if(ribbon&&ribbonBase){
       ribbon.position.y-=.09*release;
       ribbon.scale.x*=1+.09*release;
-      ribbon.scale.z*=1+.035*release;
-      ribbon.rotation.z=.024*Math.sin(release*Math.PI);
+      ribbon.scale.z=ribbonBase.sz*(1+.035*release);
+      ribbon.rotation.z=ribbonBase.rz+.024*Math.sin(release*Math.PI);
     }
-    if(bow&&bowScale){
-      bow.scale.set(bowScale.x*(1+.09*release),bowScale.y*(1-.12*release),bowScale.z*(1+.02*release));
-      bow.rotation.z+=.13*Math.sin(release*Math.PI);
+    if(bow&&bowBase){
+      bow.scale.set(bowBase.sx*(1+.09*release),bowBase.sy*(1-.12*release),bowBase.sz*(1+.02*release));
+      bow.rotation.z=bowBase.rz+.13*Math.sin(release*Math.PI);
     }
     if(lid&&lidStart){
       const open=smooth(p,design==='him'?.32:.28,design==='him'?.69:.63);
