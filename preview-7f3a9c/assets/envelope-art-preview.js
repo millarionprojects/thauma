@@ -5,7 +5,6 @@ const smooth=(v,a,b)=>{const x=clamp((v-a)/(b-a));return x*x*x*(x*(x*6-15)+10);}
 const mix=(a,b,t)=>a+(b-a)*t;
 const remap=progress=>{
   const p=clamp(progress);
-  // Shorter dead time: flap opens first, then the same certificate exits continuously.
   if(p<=.42)return p*1.25;
   return .525+(p-.42)*(.475/.58);
 };
@@ -17,13 +16,31 @@ export const prepareEnvelope=base.prepareEnvelope;
 export const envelopeLayout=base.envelopeLayout;
 export const envelopePose=progress=>base.envelopePose(remap(progress));
 
-function drawCertificate(ctx,gift,x,y,w,h){
+function sourceAspect(gift,fallback){
+  const image=gift?.certificateImage;
+  if(image&&(image.naturalWidth||image.width)&&(image.naturalHeight||image.height)){
+    return clamp((image.naturalWidth||image.width)/(image.naturalHeight||image.height),.62,2.1);
+  }
+  return fallback;
+}
+
+function fitRect(width,height,aspect){
+  let w=width*.9,h=w/aspect;
+  const maxH=height*.66;
+  if(h>maxH){h=maxH;w=h*aspect;}
+  return {x:(width-w)/2,y:(height-h)/2,w,h};
+}
+
+function drawCertificate(ctx,gift,x,y,w,h,progress){
   ctx.save();
-  ctx.shadowColor='rgba(0,0,0,.22)';ctx.shadowBlur=w*.025;ctx.shadowOffsetY=h*.025;
+  ctx.shadowColor=`rgba(0,0,0,${mix(.22,.14,progress)})`;
+  ctx.shadowBlur=w*mix(.027,.018,progress);
+  ctx.shadowOffsetY=h*mix(.026,.012,progress);
   ctx.fillStyle='#fffdfa';ctx.fillRect(x,y,w,h);ctx.shadowColor='transparent';
   const image=gift?.certificateImage;
   if(image&&(image.naturalWidth||image.width)){
-    const iw=image.naturalWidth||image.width,ih=image.naturalHeight||image.height,margin=w*.018;
+    const iw=image.naturalWidth||image.width,ih=image.naturalHeight||image.height;
+    const margin=w*mix(.018,.003,progress);
     const scale=Math.min((w-margin*2)/iw,(h-margin*2)/ih);
     ctx.drawImage(image,x+(w-iw*scale)/2,y+(h-ih*scale)/2,iw*scale,ih*scale);
   }else{
@@ -37,24 +54,26 @@ function drawCertificate(ctx,gift,x,y,w,h){
 
 function drawContinuousFocus(ctx,width,height,art,gift,raw,options){
   if(options.thumbnail)return;
-  const focus=smooth(raw,.885,1);
+  const focus=smooth(raw,.79,.995);
   if(focus<=0)return;
 
-  // Start from the exact card rectangle used by the base renderer at this frame.
-  // The overlay therefore sits precisely on top of the existing card: no second-card ghost.
+  // Begin exactly at the physical certificate rectangle already rendered in the envelope.
   const mapped=remap(raw),pose=base.envelopePose(mapped),layout=base.envelopeLayout(width,height,art,false);
-  const start={
-    x:layout.x+layout.w*.09,
-    y:layout.y+layout.h*(.12-pose.lift),
-    w:layout.w*.82,
-    h:layout.h*.69
-  };
-  const aspect=start.w/start.h;
-  let endW=Math.min(width*.86,height*.58*aspect),endH=endW/aspect;
-  if(endH>height*.58){endH=height*.58;endW=endH*aspect;}
-  const endX=(width-endW)/2,endY=Math.max(44,(height-endH)*.31);
-  const x=mix(start.x,endX,focus),y=mix(start.y,endY,focus),w=mix(start.w,endW,focus),h=mix(start.h,endH,focus);
-  drawCertificate(ctx,gift,x,y,w,h);
+  const start={x:layout.x+layout.w*.09,y:layout.y+layout.h*(.12-pose.lift),w:layout.w*.82,h:layout.h*.69};
+  const target=fitRect(width,height,sourceAspect(gift,start.w/start.h));
+
+  // Fade the packaging away behind the same card so no second card is visible during the move.
+  const veil=smooth(raw,.82,.965);
+  if(veil>0){
+    ctx.save();ctx.globalAlpha=veil;
+    ctx.fillStyle=options.theme==='dark'?'#0b191b':'#e8f3ef';
+    ctx.fillRect(0,0,width,height);ctx.restore();
+  }
+
+  const e=smooth(focus,0,1);
+  drawCertificate(ctx,gift,
+    mix(start.x,target.x,e),mix(start.y,target.y,e),
+    mix(start.w,target.w,e),mix(start.h,target.h,e),e);
 }
 
 export function drawEnvelope(ctx,width,height,art,gift,progress=0,options={}){
