@@ -16,31 +16,23 @@ export const prepareEnvelope=base.prepareEnvelope;
 export const envelopeLayout=base.envelopeLayout;
 export const envelopePose=progress=>base.envelopePose(remap(progress));
 
-function sourceAspect(gift,fallback){
-  const image=gift?.certificateImage;
-  if(image&&(image.naturalWidth||image.width)&&(image.naturalHeight||image.height)){
-    return clamp((image.naturalWidth||image.width)/(image.naturalHeight||image.height),.62,2.1);
-  }
-  return fallback;
-}
-
 function fitRect(width,height,aspect){
-  let w=width*.9,h=w/aspect;
-  const maxH=height*.66;
+  let w=width*.78,h=w/aspect;
+  const maxH=height*.56;
   if(h>maxH){h=maxH;w=h*aspect;}
   return {x:(width-w)/2,y:(height-h)/2,w,h};
 }
 
 function drawCertificate(ctx,gift,x,y,w,h,progress){
   ctx.save();
-  ctx.shadowColor=`rgba(0,0,0,${mix(.22,.14,progress)})`;
-  ctx.shadowBlur=w*mix(.027,.018,progress);
-  ctx.shadowOffsetY=h*mix(.026,.012,progress);
+  ctx.shadowColor=`rgba(0,0,0,${mix(.21,.13,progress)})`;
+  ctx.shadowBlur=w*mix(.026,.016,progress);
+  ctx.shadowOffsetY=h*mix(.024,.011,progress);
   ctx.fillStyle='#fffdfa';ctx.fillRect(x,y,w,h);ctx.shadowColor='transparent';
   const image=gift?.certificateImage;
   if(image&&(image.naturalWidth||image.width)){
     const iw=image.naturalWidth||image.width,ih=image.naturalHeight||image.height;
-    const margin=w*mix(.018,.003,progress);
+    const margin=w*mix(.018,.012,progress);
     const scale=Math.min((w-margin*2)/iw,(h-margin*2)/ih);
     ctx.drawImage(image,x+(w-iw*scale)/2,y+(h-ih*scale)/2,iw*scale,ih*scale);
   }else{
@@ -54,24 +46,26 @@ function drawCertificate(ctx,gift,x,y,w,h,progress){
 
 function drawContinuousFocus(ctx,width,height,art,gift,raw,options){
   if(options.thumbnail)return;
-  // Start only after the physical card has fully cleared the envelope mouth.
-  const focus=smooth(raw,.82,.995);
+  // Do not change the physical card's aspect ratio while it moves toward the viewer.
+  // The uploaded certificate stays contained inside that same card, which removes the
+  // visible shape-morph that made the handoff feel synthetic.
+  const focus=smooth(raw,.80,.995);
   if(focus<=0)return;
 
   const mapped=remap(raw),pose=base.envelopePose(mapped),layout=base.envelopeLayout(width,height,art,false);
   const start={x:layout.x+layout.w*.09,y:layout.y+layout.h*(.12-pose.lift),w:layout.w*.82,h:layout.h*.69};
-  const target=fitRect(width,height,sourceAspect(gift,start.w/start.h));
+  const target=fitRect(width,height,start.w/start.h);
   const bg=options.theme==='dark'?'#0b191b':'#e8f3ef';
 
-  // Remove the original card before drawing the moving card. By this point the
-  // card is completely above the envelope, so this does not erase package geometry.
-  const eraseX=start.x-start.w*.055,eraseY=start.y-start.h*.075;
-  const eraseW=start.w*1.11,eraseH=start.h*1.15;
+  // Once the card is clear of the envelope mouth, replace only that rendered card
+  // with the moving version; never draw a second card on top of it.
+  const eraseX=start.x-start.w*.05,eraseY=start.y-start.h*.06;
+  const eraseW=start.w*1.10,eraseH=start.h*1.13;
   ctx.save();ctx.fillStyle=bg;ctx.fillRect(eraseX,eraseY,eraseW,eraseH);ctx.restore();
 
-  // Once the card is safely out, let the package recede behind it. This keeps one
-  // visual object on screen instead of crossfading two differently placed cards.
-  const packageFade=smooth(raw,.865,.995);
+  // The envelope recedes slightly later than the card begins to approach. That overlap
+  // makes the movement feel physical instead of like a screen transition.
+  const packageFade=smooth(raw,.875,.995);
   if(packageFade>0){ctx.save();ctx.globalAlpha=packageFade;ctx.fillStyle=bg;ctx.fillRect(0,0,width,height);ctx.restore();}
 
   const e=smooth(focus,0,1);
@@ -98,7 +92,7 @@ export class EnvelopeScene extends base.EnvelopeScene{
   play({onComplete,onProgress,reducedMotion=false}={}){
     if(this.playing||this.disposed)return false;
     this.onComplete=onComplete;this.onProgress=onProgress;
-    this.duration=reducedMotion?.8:5.6;
+    this.duration=reducedMotion?.8:5.35;
     this.playElapsed=0;this.playing=true;this.start();return true;
   }
 }
