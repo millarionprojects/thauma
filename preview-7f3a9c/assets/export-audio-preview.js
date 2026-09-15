@@ -1,6 +1,5 @@
 import * as base from './export-audio.js?base=1';
 
-// Raise the encoded audio bitrate for saved opening videos when the browser allows it.
 (function installExportAudioQuality(){
   const Native=window.MediaRecorder;
   if(!Native||window.__thaumaExportRecorderQualityPatched)return;
@@ -19,7 +18,7 @@ import * as base from './export-audio.js?base=1';
 export const mountAudioExport=base.mountAudioExport;
 export const prepareSoundtrack=base.prepareSoundtrack;
 export function recordingLength(animationSeconds,audioSeconds=0){
-  // Keep enough tail after the animation for the certificate to settle instead of
-  // cutting on the last motion frame. Audio may be longer, so preserve it too.
-  return Math.max(animationSeconds+3.25,audioSeconds+1.0);
+  // The certificate now reaches its final state inside the scene itself, so a
+  // short settle is enough. Longer attached audio still keeps the video alive.
+  return Math.max(animationSeconds+1.05,audioSeconds+1.0);
 }
