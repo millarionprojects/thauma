@@ -19,5 +19,7 @@ import * as base from './export-audio.js?base=1';
 export const mountAudioExport=base.mountAudioExport;
 export const prepareSoundtrack=base.prepareSoundtrack;
 export function recordingLength(animationSeconds,audioSeconds=0){
-  return Math.max(animationSeconds+2.35,audioSeconds+.45);
+  // Keep enough tail after the animation for the certificate to settle instead of
+  // cutting on the last motion frame. Audio may be longer, so preserve it too.
+  return Math.max(animationSeconds+3.25,audioSeconds+1.0);
 }
