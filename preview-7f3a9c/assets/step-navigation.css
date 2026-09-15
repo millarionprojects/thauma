@@ -1,0 +1,2 @@
+#how .steps article[role="link"]{cursor:pointer}
+#how .steps article[role="link"]:focus-visible{outline:3px solid var(--teal,#008f89);outline-offset:4px}

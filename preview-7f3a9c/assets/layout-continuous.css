@@ -1,0 +1,16 @@
+:root{--thauma-header-height:76px;--thauma-scroll-gap:20px}
+html{scroll-padding-top:var(--thauma-header-height)}
+#how,#designs,#create,#dropZone,.form-fields label,.form-fields input,.form-fields textarea,.form-fields select{scroll-margin-top:var(--thauma-scroll-gap)}
+.form-fields label,.two-cols,.form-fields{min-width:0}
+.form-fields input,.form-fields textarea,.form-fields select{max-width:100%;box-sizing:border-box}
+.result-orbit:after{width:8px;height:8px;opacity:.68;animation-duration:16s;animation-timing-function:linear;top:5px}
+#sceneName[hidden]{display:none}
+@media(max-width:700px){:root{--thauma-scroll-gap:28px}.form-fields input,.form-fields textarea,.form-fields select{font-size:16px}}
+@media(prefers-reduced-motion:reduce){.result-orbit:after{animation:none}}
+
+/* A file name must not set the minimum width of the form's grid column. */
+.creator-shell>*,.creator-form>*,.drop-zone,.file-status{min-width:0;max-width:100%}
+.drop-zone{width:100%;box-sizing:border-box}
+.file-status{width:100%;white-space:normal;overflow-wrap:anywhere;word-break:break-word;box-sizing:border-box}
+.drop-zone>strong,.drop-zone>p{max-width:100%;overflow-wrap:anywhere}
+@media(max-width:1050px){.creator-shell,.creator-form{grid-template-columns:minmax(0,1fr)}}
