@@ -4,6 +4,7 @@ const preview=document.getElementById('certificatePreview');
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 let lastState=stage?.dataset.state||'';
 let bridge=null;
+let bridgeTimer=0;
 let pdfBusy=false;
 
 function sourceAspect(node){
@@ -35,36 +36,49 @@ function cloneVisual(source){
   return null;
 }
 
+function startRectFor(design,sceneRect,aspect){
+  const envelope=design.startsWith('envelope');
+  const widthRatio=envelope?.41:design==='scroll'?.47:design==='balloon'?.38:.39;
+  const centerY=envelope?.43:design==='scroll'?.45:.48;
+  const width=Math.min(sceneRect.width*widthRatio,envelope?220:230),height=width/aspect;
+  return {left:sceneRect.left+(sceneRect.width-width)/2,top:sceneRect.top+sceneRect.height*centerY-height/2,width,height};
+}
+
+function cleanupBridge(){
+  clearTimeout(bridgeTimer);bridgeTimer=0;
+  if(preview)preview.style.opacity='1';
+  if(sceneCanvas){sceneCanvas.style.opacity='1';sceneCanvas.style.transition='';}
+  bridge?.remove();bridge=null;
+}
+
 function beginSeamlessHandoff(){
   if(reducedMotion.matches||!stage||!sceneCanvas||!preview||bridge)return;
   const source=preview.querySelector('img,canvas,.demo-certificate');
   if(!source)return;
   const visual=cloneVisual(source);
   if(!visual)return;
-  const sceneRect=sceneCanvas.getBoundingClientRect();
-  const targetRect=preview.getBoundingClientRect();
+  const sceneRect=sceneCanvas.getBoundingClientRect(),targetRect=preview.getBoundingClientRect();
   if(!sceneRect.width||!targetRect.width)return;
-  const aspect=sourceAspect(source),startWidth=Math.min(sceneRect.width*.55,290),startHeight=startWidth/aspect;
-  const start={left:sceneRect.left+(sceneRect.width-startWidth)/2,top:sceneRect.top+sceneRect.height*.47-startHeight/2,width:startWidth,height:startHeight};
-  const end=fitRect(targetRect,aspect);
+  const aspect=sourceAspect(source),design=stage.dataset.design||'';
+  const start=startRectFor(design,sceneRect,aspect),end=fitRect(targetRect,aspect);
   bridge=visual;
   visual.classList.add('preview-bridge-card');
-  Object.assign(visual.style,{position:'fixed',left:start.left+'px',top:start.top+'px',width:start.width+'px',height:start.height+'px',margin:'0',zIndex:'1000',pointerEvents:'none',objectFit:'contain',transformOrigin:'center center'});
+  Object.assign(visual.style,{position:'fixed',left:start.left+'px',top:start.top+'px',width:start.width+'px',height:start.height+'px',margin:'0',zIndex:'1000',pointerEvents:'none',objectFit:'contain',transformOrigin:'center center',opacity:'1'});
   preview.style.opacity='0';
   document.body.append(visual);
+
+  // The 3D/canvas certificate is visible for the first instant, then gently gives
+  // way to the DOM clone. This prevents the double-card/ghost frame seen on iPhone.
+  sceneCanvas.style.transition='opacity 180ms ease';
+  bridgeTimer=setTimeout(()=>{if(sceneCanvas)sceneCanvas.style.opacity='0';},90);
+
   const animation=visual.animate([
-    {left:start.left+'px',top:start.top+'px',width:start.width+'px',height:start.height+'px',opacity:.98,transform:'rotate(-.8deg) scale(.98)'},
-    {offset:.55,opacity:1,transform:'rotate(-.25deg) scale(1.015)'},
-    {left:end.left+'px',top:end.top+'px',width:end.width+'px',height:end.height+'px',opacity:1,transform:'rotate(0deg) scale(1)'}
-  ],{duration:920,easing:'cubic-bezier(.22,.61,.36,1)',fill:'forwards'});
-  animation.onfinish=()=>{
-    preview.style.opacity='1';
-    visual.remove();bridge=null;
-  };
-  animation.oncancel=()=>{
-    preview.style.opacity='1';
-    visual.remove();bridge=null;
-  };
+    {left:start.left+'px',top:start.top+'px',width:start.width+'px',height:start.height+'px',transform:'translate3d(0,0,0) rotate(-.25deg)'},
+    {offset:.55,transform:'translate3d(0,-2px,0) rotate(-.08deg)'},
+    {left:end.left+'px',top:end.top+'px',width:end.width+'px',height:end.height+'px',transform:'translate3d(0,0,0) rotate(0deg)'}
+  ],{duration:680,easing:'cubic-bezier(.2,.72,.25,1)',fill:'forwards'});
+  animation.onfinish=cleanupBridge;
+  animation.oncancel=cleanupBridge;
 }
 
 async function renderFirstPdfPage(object){
@@ -111,7 +125,7 @@ if(stage){
       upgradeCertificatePreview();
       requestAnimationFrame(()=>requestAnimationFrame(beginSeamlessHandoff));
     }
-    if(state==='idle'&&bridge){bridge.remove();bridge=null;if(preview)preview.style.opacity='1';}
+    if(state==='idle')cleanupBridge();
     lastState=state;
   }).observe(stage,{attributes:true,attributeFilter:['data-state']});
 }
