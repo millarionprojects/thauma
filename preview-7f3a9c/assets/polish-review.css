@@ -7,10 +7,18 @@ html{scroll-padding-top:var(--thauma-header-height)}
 #sceneName[hidden]{display:none}
 
 /* Preview-only certificate viewer: never hard-crop uploaded content. */
-.certificate-preview{overflow:auto!important;overscroll-behavior:contain;scrollbar-width:thin}
-.certificate-preview img{display:block!important;width:auto!important;height:auto!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important;margin:auto!important}
+.certificate-preview{overflow:auto!important;overscroll-behavior:contain;scrollbar-width:thin;transition:opacity .22s ease,transform .55s cubic-bezier(.22,.61,.36,1)}
+.certificate-preview img,.certificate-preview canvas[data-pdf-first-page]{display:block!important;width:auto!important;height:auto!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important;margin:auto!important}
 .certificate-preview object{display:block;width:100%!important;height:100%!important;min-height:100%!important;border:0}
-@media(max-width:600px){.certificate-preview{height:clamp(300px,52svh,520px)!important;min-height:300px!important}.certificate-preview img{max-height:calc(52svh - 2px)!important}}
+.reveal-scene.visible .certificate-preview{animation:thaumaCertificateSettle .72s cubic-bezier(.22,.61,.36,1) both}
+.preview-bridge-card{border-radius:18px;box-shadow:0 28px 74px rgba(0,0,0,.24);will-change:left,top,width,height,transform,opacity;overflow:hidden;background:transparent}
+.preview-bridge-card.demo-certificate{padding:18px!important}
+@keyframes thaumaCertificateSettle{from{transform:translateY(10px) scale(.985)}to{transform:translateY(0) scale(1)}}
 
+@media(max-width:600px){
+  .certificate-preview{height:clamp(300px,52svh,520px)!important;min-height:300px!important}
+  .certificate-preview img,.certificate-preview canvas[data-pdf-first-page]{max-height:calc(52svh - 2px)!important}
+  .preview-bridge-card{border-radius:14px}
+}
 @media(max-width:700px){:root{--thauma-scroll-gap:28px}.form-fields input,.form-fields textarea,.form-fields select{font-size:16px}}
-@media(prefers-reduced-motion:reduce){.result-orbit:after{animation:none}}
+@media(prefers-reduced-motion:reduce){.result-orbit:after{animation:none}.reveal-scene.visible .certificate-preview{animation:none}.certificate-preview{transition:none}.preview-bridge-card{box-shadow:none}}
