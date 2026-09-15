@@ -103,8 +103,7 @@ function patchBalloonRig(rig){
     original(p,time);
     const reveal=smooth(p,.42,.86);
     if(card){
-      const s=mix(.86,.98,reveal);
-      card.scale.setScalar(s);
+      card.scale.setScalar(mix(.86,.98,reveal));
       card.position.y=mix(2.07,2.28,reveal);
       card.position.z=mix(.12,.62,reveal);
       card.rotation.x=mix(-.03,-.015,reveal);
@@ -174,7 +173,8 @@ export class G extends base.G{
     patchRig(this.rig,this.design);
     if(this.contact){
       const compact=this.design==='scroll'||this.design==='balloon';
-      this.contact.scale.set(compact?.86:1,compact?.86:1,1);
+      const scale=compact?.86:1;
+      this.contact.scale.set(scale,scale,1);
     }
   }
   play({onComplete,onProgress,reducedMotion=false}={}){
@@ -184,4 +184,4 @@ export class G extends base.G{
   }
 }
 
-export function s(){return {...base.s,GiftScene:G,DURATIONS:D};}
+export const s=Object.freeze({...base.s,GiftScene:G,DURATIONS:D});
