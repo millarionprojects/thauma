@@ -54,21 +54,25 @@ function drawCertificate(ctx,gift,x,y,w,h,progress){
 
 function drawContinuousFocus(ctx,width,height,art,gift,raw,options){
   if(options.thumbnail)return;
-  const focus=smooth(raw,.79,.995);
+  // Start only after the physical card has fully cleared the envelope mouth.
+  const focus=smooth(raw,.82,.995);
   if(focus<=0)return;
 
-  // Begin exactly at the physical certificate rectangle already rendered in the envelope.
   const mapped=remap(raw),pose=base.envelopePose(mapped),layout=base.envelopeLayout(width,height,art,false);
   const start={x:layout.x+layout.w*.09,y:layout.y+layout.h*(.12-pose.lift),w:layout.w*.82,h:layout.h*.69};
   const target=fitRect(width,height,sourceAspect(gift,start.w/start.h));
+  const bg=options.theme==='dark'?'#0b191b':'#e8f3ef';
 
-  // Fade the packaging away behind the same card so no second card is visible during the move.
-  const veil=smooth(raw,.82,.965);
-  if(veil>0){
-    ctx.save();ctx.globalAlpha=veil;
-    ctx.fillStyle=options.theme==='dark'?'#0b191b':'#e8f3ef';
-    ctx.fillRect(0,0,width,height);ctx.restore();
-  }
+  // Remove the original card before drawing the moving card. By this point the
+  // card is completely above the envelope, so this does not erase package geometry.
+  const eraseX=start.x-start.w*.055,eraseY=start.y-start.h*.075;
+  const eraseW=start.w*1.11,eraseH=start.h*1.15;
+  ctx.save();ctx.fillStyle=bg;ctx.fillRect(eraseX,eraseY,eraseW,eraseH);ctx.restore();
+
+  // Once the card is safely out, let the package recede behind it. This keeps one
+  // visual object on screen instead of crossfading two differently placed cards.
+  const packageFade=smooth(raw,.865,.995);
+  if(packageFade>0){ctx.save();ctx.globalAlpha=packageFade;ctx.fillStyle=bg;ctx.fillRect(0,0,width,height);ctx.restore();}
 
   const e=smooth(focus,0,1);
   drawCertificate(ctx,gift,
