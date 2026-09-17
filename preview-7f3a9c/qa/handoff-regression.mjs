@@ -44,5 +44,6 @@ const sanitize=new Function(source.slice(source.indexOf('function se('),source.i
 const privateGift={design:'classic',theme:'light',lang:'en',title:'PRIVATE',message:'PRIVATE',amount:'100',file:{name:'SECRET.pdf'},certificateImage:{private:true},audio:{blob:'PRIVATE AUDIO'}};
 const safe=sanitize(privateGift);assert(!safe.file&&!safe.certificateImage&&!safe.audio);assert.equal(safe.title,'A gift for you');assert.equal(sanitize(privateGift,true).certificateImage,privateGift.certificateImage);
 const html=fs.readFileSync(new URL('../open.html',import.meta.url),'utf8');assert(!html.includes('preview-open-upgrades.js'),'No racing observer handoff remains');
+const css=fs.readFileSync(new URL('../assets/polish-review.css',import.meta.url),'utf8');assert(css.includes('.gift-stage{overflow:clip}'),'The stage cannot acquire a hidden internal scroll offset');assert(css.includes('scrollbar-gutter:stable'),'The final view must not change desktop horizontal centering');
 const {recordingLength}=await import('../assets/export-audio-preview.js');assert.equal(recordingLength(5.8),7.8);assert.equal(recordingLength(5.8,18),19);
 console.log('PASS: exact live handoff, one image, cleanup, replay, reduced motion, visibility loss, fallback, safe exports, final hold/audio duration.');

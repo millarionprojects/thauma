@@ -24,6 +24,9 @@ html{scroll-padding-top:var(--thauma-header-height)}
 @media(prefers-reduced-motion:reduce){.result-orbit:after{animation:none}.reveal-scene.visible .certificate-preview{animation:none}.certificate-preview{transition:none}.preview-bridge-card{box-shadow:none}}
 
 /* The measured flight owns motion; the result must not slide a second time. */
+:root{scrollbar-gutter:stable}
+/* Hidden result controls must not make the clipped stage an internal scroller. */
+.gift-stage{overflow:clip}
 .reveal-scene,.reveal-scene.visible{transform:none!important;transition:none}
 .reveal-scene.handoff-ready{position:absolute;inset:0;min-height:100svh;pointer-events:none}
 .certificate-preview{display:flex!important;align-items:center;justify-content:center;transition:none!important}

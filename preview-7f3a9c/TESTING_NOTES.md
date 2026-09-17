@@ -8,6 +8,7 @@ Based on SOL's current preview at `9e0775c2e9e980b440c8b21316fbe1334bcfd396` and
 
 - Replaced the envelope's rectangular repaint with one continuous certificate surface. The complete packaging is composited once during the final fade, preserving the three existing closed envelope designs and avoiding translucent strip seams.
 - Replaced the estimated certificate handoff with the actual projected certificate corners and image aspect ratio. The same geometry drives the on-screen transition and the video's final presentation.
+- Browser testing exposed an internal scroll offset in the clipped stage when opening controls received focus. Disabled that hidden scroll container and reserved the desktop scrollbar gutter so the final view retains the handoff's position.
 - Removed the extra end-of-scene certificate scale/forward movement that intersected the jewelry-box rim. SOL's staged lid and certificate trajectories remain in place.
 - Applied shared-material polishing once per material; kept printed certificate colors independent of scene lighting. Final GPU appearance still requires device acceptance.
 - Reused the decoded PDF first page for the final view, avoiding a second asynchronous preview replacement.
