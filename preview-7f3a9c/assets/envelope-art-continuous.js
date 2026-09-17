@@ -135,7 +135,7 @@ export function envelopeLayout(width, height, art, thumbnail = false) {
   return {w, h, x: (width - w) / 2, y: thumbnail ? (height - h) / 2 : height * .485 - h * .035};
 }
 export function drawEnvelope(ctx, width, height, art, gift, progress = 0,
-  {thumbnail = false, transparent = false, theme = 'light'} = {}) {
+  {thumbnail = false, transparent = false, theme = 'light', drawInsert = card} = {}) {
   ctx.clearRect(0, 0, width, height);
   if (!transparent) { ctx.fillStyle = theme === 'dark' ? '#0b191b' : '#e8f3ef'; ctx.fillRect(0, 0, width, height); }
   const {angle, lift} = envelopePose(progress), {w, h, x, y} = envelopeLayout(width, height, art, thumbnail);
@@ -143,7 +143,9 @@ export function drawEnvelope(ctx, width, height, art, gift, progress = 0,
   ctx.shadowColor = 'rgba(0,0,0,.18)'; ctx.shadowBlur = w * .035; ctx.shadowOffsetY = h * .035;
   ctx.drawImage(art.back, 0, 0, w, h); ctx.shadowColor = 'transparent';
   if (angle > Math.PI / 2) flap(ctx, art, w, h, angle);
-  card(ctx, gift, w * .09, h * (.12 - lift * 1.00), w * .82, h * .69);
+  ctx.restore();
+  ctx.save(); ctx.translate(x, y);
+  drawInsert?.(ctx, gift, w * .09, h * (.12 - lift * 1.00), w * .82, h * .69);
   ctx.drawImage(art.pocket, 0, 0, w, h);
   if (angle <= Math.PI / 2) flap(ctx, art, w, h, angle);
   // Rest, picker, opening and export use exactly the same layers. No photo swap.

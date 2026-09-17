@@ -2,6 +2,21 @@
 
 This folder is the isolated review build. The production root remains unchanged.
 
+## Follow-up review — 2026-09-17
+
+Based on SOL's current preview at `9e0775c2e9e980b440c8b21316fbe1334bcfd396` and the supplied iPhone recordings.
+
+- Replaced the envelope's rectangular repaint with one continuous certificate surface. The complete packaging is composited once during the final fade, preserving the three existing closed envelope designs and avoiding translucent strip seams.
+- Replaced the estimated certificate handoff with the actual projected certificate corners and image aspect ratio. The same geometry drives the on-screen transition and the video's final presentation.
+- Removed the extra end-of-scene certificate scale/forward movement that intersected the jewelry-box rim. SOL's staged lid and certificate trajectories remain in place.
+- Applied shared-material polishing once per material; kept printed certificate colors independent of scene lighting. Final GPU appearance still requires device acceptance.
+- Reused the decoded PDF first page for the final view, avoiding a second asynchronous preview replacement.
+- Added a complete final presentation and hold to video export. Microphone capture, audio processing and the trimming editor are unchanged.
+
+Automated regression checks passed: three envelope designs, identical closed-state pixels, continuous focus boundary, portrait fit, personal-certificate exclusion, replay/reset, reduced motion, transition completion/cancellation, and six model sweeps with 241 poses each. These CPU geometry checks are not a substitute for a real GPU visual pass. Browser WebGL is unavailable in this environment.
+
+Regression scripts are in `qa/animation-regression.mjs` and `qa/handoff-regression.mjs`. The geometry script expects `three` and `@napi-rs/canvas`; point `THAUMA_TEST_PACKAGE` at a package.json whose installed dependencies provide them, and optionally set `THAUMA_QA_OUTPUT` to a temporary output directory.
+
 ## Implemented in this review build
 
 - Automatic redirect to the newly created gift after submit.

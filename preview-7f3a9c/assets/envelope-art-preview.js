@@ -1,113 +1,97 @@
-import * as base from './envelope-art-continuous.js?base=1';
+import * as base from './envelope-art-continuous.js?base=20260916-astra1';
 
 const clamp=v=>Math.max(0,Math.min(1,v));
 const smooth=(v,a,b)=>{const x=clamp((v-a)/(b-a));return x*x*x*(x*(x*6-15)+10);};
 const mix=(a,b,t)=>a+(b-a)*t;
 const rectMix=(a,b,t)=>({x:mix(a.x,b.x,t),y:mix(a.y,b.y,t),w:mix(a.w,b.w,t),h:mix(a.h,b.h,t)});
-const remap=progress=>{
-  const p=clamp(progress);
-  if(p<=.42)return p*1.25;
-  return .525+(p-.42)*(.475/.58);
-};
+// Clear the pocket before approaching the viewer; no reversal or dead hold.
+const remap=p=>p<=.42?clamp(p)*(.55/.42):mix(.55,1,clamp((p-.42)/.34));
 
 export const isEnvelope=base.isEnvelope;
 export const envelopeArt=base.envelopeArt;
 export const buildEnvelopeLayers=base.buildEnvelopeLayers;
 export const prepareEnvelope=base.prepareEnvelope;
 export const envelopeLayout=base.envelopeLayout;
-export const envelopePose=progress=>base.envelopePose(remap(progress));
+export const envelopePose=p=>base.envelopePose(remap(p));
+const packagingLayers=new WeakMap();
 
-function fitRect(width,height,aspect,widthRatio=.78,heightRatio=.56){
-  let w=width*widthRatio,h=w/aspect;
-  const maxH=height*heightRatio;
-  if(h>maxH){h=maxH;w=h*aspect;}
-  return {x:(width-w)/2,y:(height-h)/2,w,h};
+function fit(width,height,aspect,wr=.9,hr=.88){
+  const w=Math.min(width*wr,height*hr*aspect),h=w/aspect;
+  return{x:(width-w)/2,y:(height-h)/2,w,h};
 }
-function imageRect(gift,card,marginRatio=.018){
-  const image=gift?.certificateImage;
-  if(!image||(image.naturalWidth||image.width)<=0||(image.naturalHeight||image.height)<=0)return null;
-  const iw=image.naturalWidth||image.width,ih=image.naturalHeight||image.height,margin=card.w*marginRatio;
-  const scale=Math.min((card.w-margin*2)/iw,(card.h-margin*2)/ih);
+function imageRect(image,card){
+  if(!image)return null;
+  const iw=image.naturalWidth||image.width,ih=image.naturalHeight||image.height;
+  if(!iw||!ih)return null;
+  const margin=card.w*.018,scale=Math.min((card.w-margin*2)/iw,(card.h-margin*2)/ih);
   const w=iw*scale,h=ih*scale;
-  return {x:card.x+(card.w-w)/2,y:card.y+(card.h-h)/2,w,h,iw,ih,image};
+  return{x:card.x+(card.w-w)/2,y:card.y+(card.h-h)/2,w,h};
 }
-function drawCardFrame(ctx,gift,card,progress,alpha=1,drawImage=true){
-  ctx.save();ctx.globalAlpha=alpha;
-  ctx.shadowColor=`rgba(0,0,0,${mix(.21,.13,progress)})`;
-  ctx.shadowBlur=card.w*mix(.026,.016,progress);ctx.shadowOffsetY=card.h*mix(.024,.011,progress);
-  ctx.fillStyle='#fffdfa';ctx.fillRect(card.x,card.y,card.w,card.h);ctx.shadowColor='transparent';
-  const inner=imageRect(gift,card,mix(.018,.012,progress));
-  if(drawImage&&inner){ctx.drawImage(inner.image,inner.x,inner.y,inner.w,inner.h);}
-  else if(!inner){
-    const en=gift?.lang==='en';ctx.fillStyle='#25423c';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.font=`600 ${Math.max(15,card.w*.048)}px Georgia`;
-    ctx.fillText(gift?.title||(en?'A gift for you':'Подарок для вас'),card.x+card.w/2,card.y+card.h*.47,card.w*.84);
-    if(gift?.amount){ctx.font=`500 ${Math.max(13,card.w*.038)}px Arial`;ctx.fillText(String(gift.amount),card.x+card.w/2,card.y+card.h*.66,card.w*.8);}
+export function envelopePresentation(width,height,art,gift,progress){
+  const raw=clamp(progress),layout=base.envelopeLayout(width,height,art,false),pose=envelopePose(raw);
+  const start={x:layout.x+layout.w*.09,y:layout.y+layout.h*(.12-pose.lift),w:layout.w*.82,h:layout.h*.69};
+  const focus=smooth(raw,.76,1),release=smooth(raw,.80,1);
+  const card=rectMix(start,fit(width,height,start.w/start.h,.78,.56),focus);
+  const inner=imageRect(gift?.certificateImage,card);
+  const image=inner?rectMix(inner,fit(width,height,inner.w/inner.h),release):null;
+  return{card,image,frameOpacity:inner?1-release:1,packagingOpacity:1-smooth(raw,.80,.99),focus};
+}
+function drawFocusedInsert(ctx,gift,{card,image,frameOpacity}){
+  ctx.save();
+  if(frameOpacity>0){
+    ctx.globalAlpha*=frameOpacity;
+    ctx.shadowColor='rgba(0,0,0,.24)';ctx.shadowBlur=card.w*.03;ctx.shadowOffsetY=card.h*.025;
+    ctx.fillStyle='#fffdfa';ctx.fillRect(card.x,card.y,card.w,card.h);ctx.shadowColor='transparent';
+    if(!image){
+      ctx.fillStyle='#25423c';ctx.textAlign='center';ctx.font=`500 ${card.w*.065}px Georgia`;
+      ctx.fillText(gift.title||(gift.lang==='en'?'A gift for you':'Подарок для вас'),card.x+card.w/2,card.y+card.h*.46,card.w*.87);
+      if(gift.amount){ctx.font=`${card.w*.045}px Arial`;ctx.fillText(String(gift.amount),card.x+card.w/2,card.y+card.h*.67,card.w*.85);}
+    }
   }
   ctx.restore();
-  return inner;
+  if(image){ctx.save();ctx.drawImage(gift.certificateImage,image.x,image.y,image.w,image.h);ctx.restore();}
 }
-
-function drawContinuousFocus(ctx,width,height,art,gift,raw,options){
-  if(options.thumbnail)return;
-  const approach=smooth(raw,.79,.94);
-  if(approach<=0)return;
-
-  const mapped=remap(raw),pose=base.envelopePose(mapped),layout=base.envelopeLayout(width,height,art,false);
-  const start={x:layout.x+layout.w*.09,y:layout.y+layout.h*(.12-pose.lift),w:layout.w*.82,h:layout.h*.69};
-  const frameTarget=fitRect(width,height,start.w/start.h,.78,.56);
-  const card=rectMix(start,frameTarget,approach);
-  const bg=options.theme==='dark'?'#0b191b':'#e8f3ef';
-
-  // The base renderer has already drawn this card. Replace exactly that rectangle
-  // with the one moving toward the viewer so there is never a doubled certificate.
-  const eraseX=start.x-start.w*.052,eraseY=start.y-start.h*.065;
-  ctx.save();ctx.fillStyle=bg;ctx.fillRect(eraseX,eraseY,start.w*1.104,start.h*1.14);ctx.restore();
-
-  const image=gift?.certificateImage;
-  const release=image?smooth(raw,.88,.998):0;
-  const packageFade=smooth(raw,.885,.995);
-  if(packageFade>0){ctx.save();ctx.globalAlpha=packageFade;ctx.fillStyle=bg;ctx.fillRect(0,0,width,height);ctx.restore();}
-
-  if(image){
-    // Keep the white insert physically stable first. Near the camera, dissolve only
-    // the insert frame while the *same uploaded certificate image* continues its
-    // trajectory to its real aspect ratio. This avoids both a card-shape morph and
-    // a cut to a second certificate.
-    const frameAlpha=1-release;
-    const inner=drawCardFrame(ctx,gift,card,approach,frameAlpha,false);
-    if(inner){
-      const finalImage=fitRect(width,height,inner.iw/inner.ih,.90,.88);
-      const moving=rectMix({x:inner.x,y:inner.y,w:inner.w,h:inner.h},finalImage,release);
-      ctx.save();
-      ctx.shadowColor=`rgba(0,0,0,${mix(.18,.10,release)})`;ctx.shadowBlur=moving.w*mix(.018,.012,release);ctx.shadowOffsetY=moving.h*.012;
-      ctx.drawImage(inner.image,moving.x,moving.y,moving.w,moving.h);
-      ctx.restore();
-    }
-  }else{
-    drawCardFrame(ctx,gift,card,approach,1,true);
-  }
-}
-
 export function drawEnvelope(ctx,width,height,art,gift,progress=0,options={}){
-  const raw=clamp(progress);
-  base.drawEnvelope(ctx,width,height,art,gift,remap(raw),options);
-  drawContinuousFocus(ctx,width,height,art,gift,raw,options);
+  const raw=clamp(progress),state=envelopePresentation(width,height,art,gift,raw);
+  const focusing=!options.thumbnail&&state.focus>0;
+  const hidden=options.certificateHidden;
+  if(focusing){
+    let layer=packagingLayers.get(ctx.canvas);
+    if(!layer){layer=document.createElement('canvas');packagingLayers.set(ctx.canvas,layer);}
+    const ratio=ctx.getTransform().a||1,pw=Math.round(width*ratio),ph=Math.round(height*ratio);
+    if(layer.width!==pw||layer.height!==ph){layer.width=pw;layer.height=ph;}
+    const pc=layer.getContext('2d');pc.setTransform(ratio,0,0,ratio,0,0);
+    base.drawEnvelope(pc,width,height,art,gift,remap(raw),{...options,transparent:true,drawInsert:null});
+    ctx.clearRect(0,0,width,height);
+    if(!options.transparent){ctx.fillStyle=options.theme==='dark'?'#0b191b':'#e8f3ef';ctx.fillRect(0,0,width,height);}
+    // Fade a completed layer, never the overlapping perspective strips separately.
+    ctx.save();ctx.globalAlpha*=state.packagingOpacity;ctx.drawImage(layer,0,0,width,height);ctx.restore();
+  }else base.drawEnvelope(ctx,width,height,art,gift,remap(raw),{...options,...(hidden?{drawInsert:null}:{})});
+  // The insert is drawn once, in front only after it has cleared the pocket.
+  // No rectangle is painted over the packaging to erase an earlier copy.
+  if(focusing&&!hidden)drawFocusedInsert(ctx,gift,state);
 }
 
 export class EnvelopeScene extends base.EnvelopeScene{
   render(progress=this.progress,elapsed=this.elapsed){
     if(this.disposed)return;
-    const raw=clamp(progress);
-    this.progress=raw;this.elapsed=elapsed;
+    this.progress=clamp(progress);this.elapsed=elapsed;
     this.ctx.setTransform(this.pixelRatio,0,0,this.pixelRatio,0,0);
-    drawEnvelope(this.ctx,this.width,this.height,this.art,this.gift,raw,this);
-    this.canvas.dataset.phase=raw===0?'idle':raw<1?'opening':'opened';
+    drawEnvelope(this.ctx,this.width,this.height,this.art,this.gift,this.progress,this);
+    this.canvas.dataset.phase=this.progress===0?'idle':this.progress<1?'opening':'opened';
   }
+  certificateSnapshot(){
+    if(!this.gift.certificateImage)return null;
+    const rect=envelopePresentation(this.width,this.height,this.art,this.gift,this.progress).image;
+    if(!rect)return null;
+    return{image:this.gift.certificateImage,quad:[{x:rect.x,y:rect.y},{x:rect.x+rect.w,y:rect.y},{x:rect.x+rect.w,y:rect.y+rect.h},{x:rect.x,y:rect.y+rect.h}]};
+  }
+  setCertificateVisible(visible){this.certificateHidden=!visible;}
+  reset(){this.certificateHidden=false;this.presentationSnapshot=null;super.reset();}
   play({onComplete,onProgress,reducedMotion=false}={}){
     if(this.playing||this.disposed)return false;
     this.onComplete=onComplete;this.onProgress=onProgress;
-    this.duration=reducedMotion?.8:5.35;
+    this.duration=reducedMotion?.8:5.6;
     this.playElapsed=0;this.playing=true;this.start();return true;
   }
 }

@@ -9,9 +9,12 @@ export const d=base.d;
 export const D={...base.D,classic:5.8,envelope:5.6,'envelope-gold':5.6,'envelope-copper':5.6,scroll:5.5,jewelry:5.8,balloon:5.5,him:6.0,case:6.1};
 
 function polishMaterials(root,design){
+  const seen=new Set();
   root?.traverse?.(node=>{
     if(!node.material)return;
     for(const mat of Array.isArray(node.material)?node.material:[node.material]){
+      if(seen.has(mat))continue;
+      seen.add(mat);
       if(typeof mat.roughness==='number'){
         if((mat.metalness||0)>.5) mat.roughness=clamp(mat.roughness*.88,.16,.52);
         else if((mat.clearcoat||0)>.25) mat.roughness=clamp(mat.roughness*.94,.2,.8);
@@ -26,12 +29,11 @@ function polishMaterials(root,design){
   if(design==='jewelry') root?.scale?.setScalar?.(1.045);
 }
 
-function applyFinalFocus(card,p,baseScale={x:1,y:1,z:1},amount=.16){
+function applyFinalFocus(card,p,baseScale={x:1,y:1,z:1}){
   if(!card)return;
-  const focus=smooth(p,.93,1),scale=1+amount*focus;
-  card.scale.set(baseScale.x*scale,baseScale.y*scale,baseScale.z*scale);
-  card.position.z+=.28*focus;
-  card.position.y-=.08*focus;
+  // Presentation is now a separate measured camera-space flight. Keep the
+  // physical card at its true size; growing/lowering it here hit the box rim.
+  card.scale.set(baseScale.x,baseScale.y,baseScale.z);
 }
 
 function findBoxParts(rig){
@@ -192,6 +194,13 @@ function patchScrollRig(rig){
 function patchRig(rig,design){
   if(!rig?.update)return;
   polishMaterials(rig.g,design);
+  // The document itself is color-accurate; studio lights shade its physical edge,
+  // not the user's printed image. This also keeps the canvas/DOM handoff neutral.
+  const face=rig.card?.children?.find(n=>n.geometry?.type==='PlaneGeometry'&&n.material?.map);
+  if(face){
+    const m=face.material;m.emissiveMap=m.map;m.emissive.set('#ffffff');m.emissiveIntensity=1;
+    m.color.set('#000000');m.metalness=0;m.roughness=1;m.clearcoat=0;m.toneMapped=false;m.needsUpdate=true;
+  }
   if(design==='classic'||design==='him')patchBoxRig(rig,design);
   else if(design==='jewelry')patchJewelryRig(rig);
   else if(design==='case')patchCaseRig(rig);
@@ -202,11 +211,14 @@ function patchRig(rig,design){
 export class G extends base.G{
   constructor(...args){
     super(...args);
-    this.renderer.toneMappingExposure=1.14;
+    this.renderer.toneMappingExposure=1.02;
   }
   setDesign(design,gift={}){
     super.setDesign(design,gift);
     patchRig(this.rig,this.design);
+    this.certificateHidden=false;
+    const update=this.rig.update.bind(this.rig);
+    this.rig.update=(...args)=>{update(...args);if(this.certificateHidden&&this.rig.card)this.rig.card.visible=false;};
     if(this.contact){
       const compact=this.design==='scroll'||this.design==='balloon';
       const scale=compact?.8:this.design==='jewelry'?.92:1;
@@ -214,6 +226,8 @@ export class G extends base.G{
       if(compact)this.contact.material.opacity*=.78;
     }
   }
+  setCertificateVisible(visible){this.certificateHidden=!visible;}
+  reset(){this.certificateHidden=false;this.presentationSnapshot=null;super.reset();}
   play({onComplete,onProgress,reducedMotion=false}={}){
     if(this.playing)return false;
     this.onComplete=onComplete;this.onProgress=onProgress;this.reducedMotion=reducedMotion;
@@ -221,4 +235,9 @@ export class G extends base.G{
   }
 }
 
-export const s=Object.freeze({...base.s,GiftScene:G,DURATIONS:D});
+export function createObjectRig(design,gift={}){
+  const result=base.s.createObjectRig(design,gift);
+  patchRig(result.rig,design);
+  return result;
+}
+export const s=Object.freeze({...base.s,GiftScene:G,DURATIONS:D,createObjectRig});

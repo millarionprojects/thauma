@@ -18,7 +18,7 @@ import * as base from './export-audio.js?base=1';
 export const mountAudioExport=base.mountAudioExport;
 export const prepareSoundtrack=base.prepareSoundtrack;
 export function recordingLength(animationSeconds,audioSeconds=0){
-  // The certificate now reaches its final state inside the scene itself, so a
-  // short settle is enough. Longer attached audio still keeps the video alive.
-  return Math.max(animationSeconds+1.05,audioSeconds+1.0);
+  // Include the .85 s measured presentation and a readable final hold.
+  // The audio path and its lifetime remain unchanged.
+  return Math.max(animationSeconds+2.0,audioSeconds+1.0);
 }

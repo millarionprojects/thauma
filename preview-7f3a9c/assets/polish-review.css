@@ -10,7 +10,7 @@ html{scroll-padding-top:var(--thauma-header-height)}
 .certificate-preview{overflow:auto!important;overscroll-behavior:contain;scrollbar-width:thin;transition:opacity .22s ease,transform .55s cubic-bezier(.22,.61,.36,1)}
 .certificate-preview img,.certificate-preview canvas[data-pdf-first-page]{display:block!important;width:auto!important;height:auto!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important;margin:auto!important}
 .certificate-preview object{display:block;width:100%!important;height:100%!important;min-height:100%!important;border:0}
-.reveal-scene.visible .certificate-preview{animation:thaumaCertificateSettle .72s cubic-bezier(.22,.61,.36,1) both}
+.reveal-scene.visible .certificate-preview{animation:none}
 .preview-bridge-card{border-radius:18px;box-shadow:0 28px 74px rgba(0,0,0,.24);will-change:left,top,width,height,transform,opacity;overflow:hidden;background:transparent}
 .preview-bridge-card.demo-certificate{padding:18px!important}
 @keyframes thaumaCertificateSettle{from{transform:translateY(10px) scale(.985)}to{transform:translateY(0) scale(1)}}
@@ -22,3 +22,11 @@ html{scroll-padding-top:var(--thauma-header-height)}
 }
 @media(max-width:700px){:root{--thauma-scroll-gap:28px}.form-fields input,.form-fields textarea,.form-fields select{font-size:16px}}
 @media(prefers-reduced-motion:reduce){.result-orbit:after{animation:none}.reveal-scene.visible .certificate-preview{animation:none}.certificate-preview{transition:none}.preview-bridge-card{box-shadow:none}}
+
+/* The measured flight owns motion; the result must not slide a second time. */
+.reveal-scene,.reveal-scene.visible{transform:none!important;transition:none}
+.reveal-scene.handoff-ready{position:absolute;inset:0;min-height:100svh;pointer-events:none}
+.certificate-preview{display:flex!important;align-items:center;justify-content:center;transition:none!important}
+.certificate-preview img,.certificate-preview canvas[data-pdf-first-page]{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;flex:none}
+.certificate-in-flight>*{visibility:hidden!important}
+.certificate-flight{position:fixed;left:0;top:0;width:1px;height:1px;margin:0;padding:0;border:0;border-radius:0;z-index:1000;pointer-events:none;transform-origin:0 0;will-change:transform,opacity}
