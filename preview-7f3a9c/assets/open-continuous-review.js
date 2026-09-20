@@ -3,6 +3,7 @@ import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-a
 import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
+import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260920-video1';
 async function de(t) {
   if (!(t != null && t.blob)) return null;
   if (t.type === "application/pdf") {
@@ -218,6 +219,10 @@ async function he() {
     if (x.signal.aborted) throw Error("Aborted");
     t.renderer.setPixelRatio(1), t.resize(720, 800);
     const u = e("videoCanvas"), r = u.getContext("2d"), f = a.theme === "dark";
+    // Keep the capture surface in the rendered page during recording. In
+    // particular, do not rely on capture from a display:none canvas on mobile.
+    u.hidden = false;
+    u.style.cssText = 'position:fixed;right:16px;bottom:16px;width:min(180px,32vw);height:auto;z-index:1000;border-radius:12px;box-shadow:0 4px 24px #0006;pointer-events:none';
     E(0), i = u.captureStream(30);
     if (soundtrack) i.addTrack(soundtrack.track);
     const totalDuration = recordingLength(Y[a.design], soundtrack?.duration || 0) * 1e3;
@@ -228,18 +233,26 @@ async function he() {
     n.ondataavailable = (p) => {
       p.data.size && I.push(p.data);
     };
+    let complete = false;
     const D = new Promise((p, A) => {
-      n.onstop = p, n.onerror = A;
+      n.onstop = () => complete ? p() : A(Error('Recording stopped early'));
+      n.onerror = () => { A(Error('Recording failed')); x?.abort(); };
     });
     D.catch(() => {
-    }), n.start(250), soundtrack?.start(), await new Promise((p, A) => {
+    });
+    // One final output, not a concatenation of frequent MP4 fragments.
+    const started = waitForMedia(n, 'start', x.signal);
+    n.start();
+    await started;
+    soundtrack?.start();
+    await new Promise((p, A) => {
       const ne = performance.now(), H = Y[a.design] * 1e3, ae = setTimeout(() => A(Error("Recording timeout")), totalDuration + 15e3), B = (S) => {
         clearTimeout(ae), S ? A(S) : p();
       };
       x.signal.addEventListener("abort", () => B(Error("Recording interrupted")), { once: true });
       function j(S) {
         if (!x.signal.aborted) {
-          if (document.hidden) {
+          if (document.hidden || n.state !== 'recording') {
             B(Error("Recording hidden"));
             return;
           }
@@ -258,13 +271,26 @@ async function he() {
         }
       }
       d = requestAnimationFrame(j);
-    }), n.stop(), await D;
+    });
+    complete = true;
+    const stopped = waitForMedia(n, 'stop', x.signal);
+    n.stop();
+    await stopped;
+    await D;
     const R = n.mimeType || w, N = new Blob(I, { type: R });
     if (!N.size) throw Error("Empty recording");
+    m(q === 'en' ? 'Checking the saved video…' : 'Проверяем сохранённое видео…');
+    const verified = await verifyVideo(N, totalDuration / 1000, x.signal);
+    e('exportPreview').dataset.expectedDuration = String(totalDuration / 1000);
+    e('exportPreview').dataset.actualDuration = String(verified.duration);
     y = new File([N], "thauma-" + a.design + "-opening." + (R.includes("mp4") ? "mp4" : "webm"), { type: R.split(";")[0] }), L = URL.createObjectURL(y), e("exportPreview").src = L, e("exportPreview").hidden = false, e("saveVideo").hidden = false, e("saveHelp").hidden = false, m(o("videoReady") + (R.includes("mp4") ? "" : " " + o("videoNoMp4")));
-  } catch {
-    O(), m(o("videoError"));
+  } catch (error) {
+    O();
+    const incomplete = error.code === 'INCOMPLETE_VIDEO';
+    m(incomplete ? (q === 'en' ? 'The video is incomplete and was not saved. Keep this page open and try again.' : 'Видео записалось не целиком — сохранение отменено. Не сворачивайте страницу и попробуйте ещё раз.') : o('videoError'));
   } finally {
+    e('videoCanvas').hidden = true;
+    e('videoCanvas').removeAttribute('style');
     await soundtrack?.close();
     e("soundVideo").disabled = !a.audio?.blob;
     cancelAnimationFrame(d), n && n.state !== "inactive" && n.stop(), i == null || i.getTracks().forEach((l) => l.stop()), t == null || t.dispose(), x = null, T = false, g.classList.remove("recording"), e("downloadVideo").disabled = false, e("downloadVideo").textContent = o("video"), e("personalVideo").disabled = false;
