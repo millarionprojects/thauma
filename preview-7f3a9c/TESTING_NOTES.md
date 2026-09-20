@@ -2,6 +2,10 @@
 
 This folder is the isolated review build. The production root remains unchanged.
 
+## Create-gift follow-up — 2026-09-20
+
+Restored same-tab navigation to the new gift after form submission. Navigation happens only after audio preparation and gift persistence succeed; the existing result link and save-error behavior remain available. The new entry URL bypasses the previously cached submit handler. No scene, microphone or trimming logic changes are included.
+
 ## Follow-up review — 2026-09-17
 
 Based on SOL's current preview at `9e0775c2e9e980b440c8b21316fbe1334bcfd396` and the supplied iPhone recordings.
