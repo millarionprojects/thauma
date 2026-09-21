@@ -38,6 +38,40 @@ const setTfdtValue=(v,box,n)=>{
     v.setUint32(box.data+4,n);
   }
 };
+const fullDuration=(v,box)=>{
+  const version=v.getUint8(box.data);
+  if(box.type==='mvhd'||box.type==='mdhd')return version===1?u64(v,box.data+24):u32(v,box.data+16);
+  if(box.type==='tkhd')return version===1?u64(v,box.data+28):u32(v,box.data+20);
+  if(box.type==='mehd')return version===1?u64(v,box.data+4):u32(v,box.data+4);
+  return 0;
+};
+const setFullDuration=(v,box,n)=>{
+  const version=v.getUint8(box.data);
+  if(box.type==='mvhd'||box.type==='mdhd'){
+    version===1?writeU64(v,box.data+24,n):v.setUint32(box.data+16,n);
+  }else if(box.type==='tkhd'){
+    version===1?writeU64(v,box.data+28,n):v.setUint32(box.data+20,n);
+  }else if(box.type==='mehd'){
+    version===1?writeU64(v,box.data+4,n):v.setUint32(box.data+4,n);
+  }
+};
+const movieTimescale=(v,mvhd)=>{
+  const version=v.getUint8(mvhd.data);
+  return u32(v,mvhd.data+(version===1?20:12));
+};
+const trackId=(v,tkhd)=>u32(v,tkhd.data+(v.getUint8(tkhd.data)===1?20:12));
+const mediaTimescale=(v,mdhd)=>u32(v,mdhd.data+(v.getUint8(mdhd.data)===1?20:12));
+const setEditList=(v,trak,movieDuration)=>{
+  const edts=child(v,trak,'edts'),elst=edts&&child(v,edts,'elst');
+  if(!elst||u32(v,elst.data+4)!==1)return;
+  const version=v.getUint8(elst.data),p=elst.data+8;
+  if(version===1){
+    writeU64(v,p,movieDuration);writeU64(v,p+8,0);
+  }else{
+    if(movieDuration>0xffffffff)return;
+    v.setUint32(p,movieDuration);v.setInt32(p+4,0);
+  }
+};
 
 function movie(v){
   const root=need(boxes(v).find(b=>b.type==='moov')),tracks=new Map();
@@ -161,7 +195,7 @@ export async function inspectMp4(blob,signal){
   if(!video?.samples||!video.width||!video.height)fail('MP4 contains no video samples');
   return {duration:video.duration,width:video.width,height:video.height,
     startTime:(video.first||0)/video.timescale,
-    tracks:[...tracks.values()].map(({kind,codec,duration,samples,bytes,first,timescale})=>({kind,codec,duration,samples,bytes,startTime:(first||0)/timescale}))};
+    tracks:[...tracks.values()].map(({id,kind,codec,duration,samples,bytes,first,timescale})=>({id,kind,codec,duration,samples,bytes,timescale,startTime:(first||0)/timescale}))};
 }
 
 // Safari MediaRecorder can emit fragmented MP4 files whose tfdt decode times
@@ -185,11 +219,37 @@ export async function normalizeMp4Timeline(blob,signal){
       entries.push({id,box:tfdt,time});
     }
   }
-  if(!entries.length)return blob;
   let changed=false;
   for(const {id,box,time} of entries){
     const origin=first.get(id)||0,next=time-origin;
     if(next!==time){setTfdtValue(v,box,next);changed=true;}
+  }
+
+  // Compute the real sample durations after rebasing and write the same
+  // duration into every movie/track header Safari or an uploader may consult.
+  const normalized=new Blob([buffer],{type:blob.type});
+  const actual=await inspectMp4(normalized,signal);
+  const moov=need(top.find(b=>b.type==='moov'));
+  const mvhd=need(child(v,moov,'mvhd')),movieScale=movieTimescale(v,mvhd);
+  if(!movieScale)fail('Invalid movie timescale');
+  const byId=new Map(actual.tracks.map(t=>[t.id,t]));
+  let movieDuration=0;
+  for(const trak of boxes(v,moov.data,moov.end).filter(b=>b.type==='trak')){
+    const tkhd=need(child(v,trak,'tkhd')),mdia=need(child(v,trak,'mdia')),mdhd=need(child(v,mdia,'mdhd'));
+    const id=trackId(v,tkhd),track=byId.get(id);
+    if(!track||!Number.isFinite(track.duration))continue;
+    const mediaScale=mediaTimescale(v,mdhd);
+    const mediaDuration=Math.max(1,Math.round(track.duration*mediaScale));
+    const trackMovieDuration=Math.max(1,Math.round(track.duration*movieScale));
+    if(fullDuration(v,mdhd)!==mediaDuration){setFullDuration(v,mdhd,mediaDuration);changed=true;}
+    if(fullDuration(v,tkhd)!==trackMovieDuration){setFullDuration(v,tkhd,trackMovieDuration);changed=true;}
+    setEditList(v,trak,trackMovieDuration);
+    movieDuration=Math.max(movieDuration,trackMovieDuration);
+  }
+  if(movieDuration){
+    if(fullDuration(v,mvhd)!==movieDuration){setFullDuration(v,mvhd,movieDuration);changed=true;}
+    const mvex=child(v,moov,'mvex'),mehd=mvex&&child(v,mvex,'mehd');
+    if(mehd&&fullDuration(v,mehd)!==movieDuration){setFullDuration(v,mehd,movieDuration);changed=true;}
   }
   return changed?new Blob([buffer],{type:blob.type}):blob;
 }
