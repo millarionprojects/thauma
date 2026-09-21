@@ -82,8 +82,7 @@ test('repairs a flattened MP4 whose final video sample is much longer than the a
   assert.ok(before.duration>10);
   const fixed=await normalizeMp4Timeline(broken,undefined,{expectedDuration:3});
   const afterFix=await inspectMp4(fixed);
-  assert.ok(afterFix.duration<5);
-  assert.ok(afterFix.duration>2.5);
+  assert.ok(Math.abs(afterFix.duration-3)<0.15);
 });
 
 test('rejects a complete short clip instead of calling it a full recording',async()=>{
