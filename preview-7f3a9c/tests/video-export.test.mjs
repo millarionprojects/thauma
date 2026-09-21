@@ -61,6 +61,31 @@ test('rejects an absurdly long clip instead of accepting only a lower duration b
   assert.throws(()=>checkDuration(7158294.75,15.9),{code:'INCOMPLETE_VIDEO'});
 });
 
+test('repairs a flattened MP4 whose final video sample is much longer than the audio',async()=>{
+  const source=fixtures.flat.blob,bytes=new Uint8Array(await source.arrayBuffer()),v=new DataView(bytes.buffer);
+  // Find the video stts box and inflate only its final duration entry.
+  const typeAt=i=>String.fromCharCode(bytes[i],bytes[i+1],bytes[i+2],bytes[i+3]);
+  let stts=-1;
+  for(let i=4;i+16<bytes.length;i++){
+    if(typeAt(i)!=='stts')continue;
+    const start=i+4,entries=v.getUint32(start+4);
+    if(entries<1)continue;
+    const last=start+8+(entries-1)*8;
+    if(last+8>bytes.length)continue;
+    const duration=v.getUint32(last+4);
+    if(duration>0&&duration<100000){stts=last+4;}
+  }
+  assert.ok(stts>0);
+  v.setUint32(stts,15000);
+  const broken=new Blob([bytes],{type:'video/mp4'});
+  const before=await inspectMp4(broken);
+  assert.ok(before.duration>10);
+  const fixed=await normalizeMp4Timeline(broken,undefined,{expectedDuration:3});
+  const afterFix=await inspectMp4(fixed);
+  assert.ok(afterFix.duration<5);
+  assert.ok(afterFix.duration>2.5);
+});
+
 test('rejects a complete short clip instead of calling it a full recording',async()=>{
   await assert.rejects(verifyVideo(fixtures.fragmented.blob,25),{code:'INCOMPLETE_VIDEO'});
 });
