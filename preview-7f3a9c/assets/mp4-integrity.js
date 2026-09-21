@@ -132,6 +132,53 @@ function flatSamples(v,t,ranges){
   t.samples=count;t.duration=ticks/t.timescale;t.first=0;t.last=ticks;
 }
 
+function sttsSummary(v,stts){
+  const rows=u32(v,stts.data+4);let ticks=0,samples=0,previous=0,last=null;
+  if(stts.data+8+rows*8>stts.end)fail('Truncated MP4 timing table');
+  for(let i=0,p=stts.data+8;i<rows;i++,p+=8){
+    const count=u32(v,p),duration=u32(v,p+4);
+    ticks+=count*duration;samples+=count;
+    if(i===rows-2)previous=duration;
+    if(i===rows-1)last={count,duration,pos:p+4};
+  }
+  return{rows,ticks,samples,previous,last};
+}
+
+// Safari can also flatten the recording into moov+mdat and encode the final
+// still as one stts entry. On affected iPhones that last duration can be far
+// longer than the recording itself. Rebase that one tail sample to the planned
+// recording/audio duration without changing the encoded frame data.
+function sanitizeFlatVideoTail(v,top,expectedSeconds=0){
+  const moov=need(top.find(b=>b.type==='moov')),tracks=[];
+  let targetSeconds=Math.max(0,Number(expectedSeconds)||0);
+  for(const trak of boxes(v,moov.data,moov.end).filter(b=>b.type==='trak')){
+    const mdia=need(child(v,trak,'mdia')),mdhd=need(child(v,mdia,'mdhd')),hdlr=need(child(v,mdia,'hdlr'));
+    const minf=need(child(v,mdia,'minf')),stbl=need(child(v,minf,'stbl')),stts=need(child(v,stbl,'stts'));
+    const kind=tag(v,hdlr.data+8),timescale=mediaTimescale(v,mdhd),summary=sttsSummary(v,stts);
+    const seconds=summary.ticks/timescale;
+    tracks.push({kind,timescale,summary,seconds});
+    if(kind==='soun'&&Number.isFinite(seconds))targetSeconds=Math.max(targetSeconds,seconds);
+  }
+  if(!targetSeconds)return false;
+  let changed=false;
+  for(const t of tracks.filter(t=>t.kind==='vide')){
+    const {summary,timescale}=t,last=summary.last;
+    if(!last||last.count!==1)continue;
+    const prefixTicks=summary.ticks-last.duration;
+    const targetTicks=Math.max(1,Math.round(targetSeconds*timescale));
+    const desired=Math.max(1,targetTicks-prefixTicks);
+    const nominal=summary.previous||Math.max(1,Math.round(timescale/30));
+    const actualSeconds=summary.ticks/timescale;
+    const suspicious=last.duration>=0x80000000||
+      last.duration>Math.max(nominal*8,timescale*.5)||
+      actualSeconds>targetSeconds+2;
+    if(suspicious&&desired!==last.duration&&desired>0&&desired<timescale*30){
+      v.setUint32(last.pos,desired);changed=true;
+    }
+  }
+  return changed;
+}
+
 function sanitizeWrappedSampleDurations(v,top){
   const moov=need(top.find(b=>b.type==='moov')),meta=new Map();
   for(const trak of boxes(v,moov.data,moov.end).filter(b=>b.type==='trak')){
@@ -251,7 +298,7 @@ export async function inspectMp4(blob,signal){
 // complete, so our duration check passes, but native players and uploaders may
 // display hundreds of hours. Rebase each track's fragment timeline to zero
 // without touching encoded media bytes or box sizes.
-export async function normalizeMp4Timeline(blob,signal){
+export async function normalizeMp4Timeline(blob,signal,{expectedDuration=0}={}){
   if(!blob?.type?.toLowerCase().startsWith('video/mp4'))return blob;
   if(signal?.aborted)throw new DOMException('Recording interrupted','AbortError');
   if(blob.size>128*1024*1024)fail('MP4 too large to normalize');
@@ -259,6 +306,7 @@ export async function normalizeMp4Timeline(blob,signal){
   if(signal?.aborted)throw new DOMException('Recording interrupted','AbortError');
   const v=new DataView(buffer),top=boxes(v),first=new Map(),entries=[];
   let changed=sanitizeWrappedSampleDurations(v,top);
+  if(sanitizeFlatVideoTail(v,top,expectedDuration))changed=true;
   for(const moof of top.filter(b=>b.type==='moof')){
     for(const traf of boxes(v,moof.data,moof.end).filter(b=>b.type==='traf')){
       const tfhd=child(v,traf,'tfhd'),tfdt=child(v,traf,'tfdt');
