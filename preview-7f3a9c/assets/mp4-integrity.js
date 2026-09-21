@@ -25,6 +25,19 @@ const child=(v,parent,type)=>boxes(v,parent.data,parent.end).find(b=>b.type===ty
 const need=(value)=>value||fail('Missing MP4 sample table');
 const view=buffer=>new DataView(buffer);
 const within=(ranges,start,end)=>ranges.some(r=>start>=r.start&&end<=r.end&&end>start);
+const writeU64=(v,p,n)=>{
+  if(!Number.isSafeInteger(n)||n<0)fail('Invalid MP4 integer');
+  v.setUint32(p,Math.floor(n/4294967296));
+  v.setUint32(p+4,n>>>0);
+};
+const tfdtValue=(v,box)=>v.getUint8(box.data)===1?u64(v,box.data+4):u32(v,box.data+4);
+const setTfdtValue=(v,box,n)=>{
+  if(v.getUint8(box.data)===1)writeU64(v,box.data+4,n);
+  else{
+    if(n>0xffffffff)fail('MP4 timestamp exceeds version 0 range');
+    v.setUint32(box.data+4,n);
+  }
+};
 
 function movie(v){
   const root=need(boxes(v).find(b=>b.type==='moov')),tracks=new Map();
@@ -147,5 +160,36 @@ export async function inspectMp4(blob,signal){
   const video=[...tracks.values()].find(t=>t.kind==='vide');
   if(!video?.samples||!video.width||!video.height)fail('MP4 contains no video samples');
   return {duration:video.duration,width:video.width,height:video.height,
-    tracks:[...tracks.values()].map(({kind,codec,duration,samples,bytes})=>({kind,codec,duration,samples,bytes}))};
+    startTime:(video.first||0)/video.timescale,
+    tracks:[...tracks.values()].map(({kind,codec,duration,samples,bytes,first,timescale})=>({kind,codec,duration,samples,bytes,startTime:(first||0)/timescale}))};
+}
+
+// Safari MediaRecorder can emit fragmented MP4 files whose tfdt decode times
+// start at a large device/media clock value instead of zero. The samples are
+// complete, so our duration check passes, but native players and uploaders may
+// display hundreds of hours. Rebase each track's fragment timeline to zero
+// without touching encoded media bytes or box sizes.
+export async function normalizeMp4Timeline(blob,signal){
+  if(!blob?.type?.toLowerCase().startsWith('video/mp4'))return blob;
+  if(signal?.aborted)throw new DOMException('Recording interrupted','AbortError');
+  if(blob.size>128*1024*1024)fail('MP4 too large to normalize');
+  const buffer=await blob.arrayBuffer();
+  if(signal?.aborted)throw new DOMException('Recording interrupted','AbortError');
+  const v=new DataView(buffer),top=boxes(v),first=new Map(),entries=[];
+  for(const moof of top.filter(b=>b.type==='moof')){
+    for(const traf of boxes(v,moof.data,moof.end).filter(b=>b.type==='traf')){
+      const tfhd=child(v,traf,'tfhd'),tfdt=child(v,traf,'tfdt');
+      if(!tfhd||!tfdt)continue;
+      const id=u32(v,tfhd.data+4),time=tfdtValue(v,tfdt);
+      if(!first.has(id))first.set(id,time);
+      entries.push({id,box:tfdt,time});
+    }
+  }
+  if(!entries.length)return blob;
+  let changed=false;
+  for(const {id,box,time} of entries){
+    const origin=first.get(id)||0,next=time-origin;
+    if(next!==time){setTfdtValue(v,box,next);changed=true;}
+  }
+  return changed?new Blob([buffer],{type:blob.type}):blob;
 }
