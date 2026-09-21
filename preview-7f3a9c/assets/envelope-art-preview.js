@@ -88,6 +88,13 @@ export class EnvelopeScene extends base.EnvelopeScene{
   }
   setCertificateVisible(visible){this.certificateHidden=!visible;}
   reset(){this.certificateHidden=false;this.presentationSnapshot=null;super.reset();}
+  dispose(){
+    const layer=packagingLayers.get(this.canvas);
+    if(layer){layer.width=1;layer.height=1;packagingLayers.delete(this.canvas);}
+    this.presentationSnapshot=null;
+    super.dispose();
+    this.canvas.width=1;this.canvas.height=1;
+  }
   play({onComplete,onProgress,reducedMotion=false}={}){
     if(this.playing||this.disposed)return false;
     this.onComplete=onComplete;this.onProgress=onProgress;

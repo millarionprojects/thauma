@@ -4,6 +4,7 @@ import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
 import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260920-video1';
+import { createExportPainter } from './export-render.js?v=20260921-video2';
 async function de(t) {
   if (!(t != null && t.blob)) return null;
   if (t.type === "application/pdf") {
@@ -202,7 +203,7 @@ async function he() {
     return;
   }
   O(), T = true, g.classList.add("recording"), e("downloadVideo").disabled = true, e("downloadVideo").textContent = o("recording"), e("personalVideo").disabled = true, e("giftAudio").pause(), m("");
-  let t = null, i = null, n = null, d = null, soundtrack = null;
+  let t = null, i = null, n = null, d = null, soundtrack = null, painter = null;
   x = new AbortController();
   e("soundVideo").disabled = true;
   try {
@@ -219,14 +220,17 @@ async function he() {
     if (x.signal.aborted) throw Error("Aborted");
     t.renderer.setPixelRatio(1), t.resize(720, 800);
     const u = e("videoCanvas"), r = u.getContext("2d"), f = a.theme === "dark";
-    // Keep the capture surface in the rendered page during recording. In
-    // particular, do not rely on capture from a display:none canvas on mobile.
+    u.width = 720; u.height = 1280;
+    // A normal inline preview, with progress on the prepare button. No floating
+    // window covering the controls, and no second encoded video while recording.
     u.hidden = false;
-    u.style.cssText = 'position:fixed;right:16px;bottom:16px;width:min(180px,32vw);height:auto;z-index:1000;border-radius:12px;box-shadow:0 4px 24px #0006;pointer-events:none';
+    painter = createExportPainter({canvas:u, draw:E, sceneSeconds:Y[a.design], presentationSeconds:PRESENTATION_SECONDS,
+      onStill:()=>{t?.dispose();t=null;c.width=1;c.height=1;}});
     E(0), i = u.captureStream(30);
     if (soundtrack) i.addTrack(soundtrack.track);
     const totalDuration = recordingLength(Y[a.design], soundtrack?.duration || 0) * 1e3;
-    const w = (soundtrack ? ["video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"] : ["video/mp4;codecs=avc1.42E01E", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]).find((p) => MediaRecorder.isTypeSupported(p));
+    // H.264 level 3.1 accommodates 720x1280 at 30 fps; level 3.0 does not.
+    const w = (soundtrack ? ["video/mp4;codecs=avc1.42E01F,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm;codecs=vp8,opus", "video/webm"] : ["video/mp4;codecs=avc1.42E01F", "video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp8", "video/webm"]).find((p) => MediaRecorder.isTypeSupported(p));
     if (!w) throw Error("No recording format");
     n = new MediaRecorder(i, { mimeType: w, videoBitsPerSecond: 5e6 });
     const I = [];
@@ -240,13 +244,15 @@ async function he() {
     });
     D.catch(() => {
     });
-    // One final output, not a concatenation of frequent MP4 fragments.
+    // Let the native encoder flush periodically instead of buffering the whole
+    // recording internally. All chunks are collected through the final stop.
     const started = waitForMedia(n, 'start', x.signal);
-    n.start();
+    n.start(1000);
     await started;
     soundtrack?.start();
     await new Promise((p, A) => {
-      const ne = performance.now(), H = Y[a.design] * 1e3, ae = setTimeout(() => A(Error("Recording timeout")), totalDuration + 15e3), B = (S) => {
+      let lastPercent = -1;
+      const ne = performance.now(), ae = setTimeout(() => A(Error("Recording timeout")), totalDuration + 15e3), B = (S) => {
         clearTimeout(ae), S ? A(S) : p();
       };
       x.signal.addEventListener("abort", () => B(Error("Recording interrupted")), { once: true });
@@ -258,8 +264,14 @@ async function he() {
           }
           try {
             const M = S - ne;
-            E(Math.min(1, M / H), M / 1000);
-            i.getVideoTracks()[0]?.requestFrame?.();
+            painter.paint(M / 1000);
+            // captureStream(30) supplies frames. requestFrame() here would
+            // override that cap and enqueue 60/120 fps on faster displays.
+            const percent = Math.min(99, Math.floor(M / totalDuration * 100));
+            if (percent !== lastPercent) {
+              lastPercent = percent;
+              e('downloadVideo').textContent = o('recording') + ' ' + percent + '%';
+            }
             if (M >= totalDuration) {
               B();
               return;
@@ -278,22 +290,34 @@ async function he() {
     await stopped;
     await D;
     const R = n.mimeType || w, N = new Blob(I, { type: R });
+    I.length = 0;
     if (!N.size) throw Error("Empty recording");
+    // Release the encoder, audio graph and scene surfaces before a decoder is
+    // created to validate the result. Mobile must not keep both pipelines live.
+    i.getTracks().forEach(track=>track.stop()); i=null;
+    await soundtrack?.close(); soundtrack=null;
+    painter.dispose(); painter=null;
+    t?.dispose(); t=null; c.width=1; c.height=1;
+    u.hidden=true; u.width=1; u.height=1;
+    n.ondataavailable=null; n.onstop=null; n.onerror=null; n=null;
     m(q === 'en' ? 'Checking the saved video…' : 'Проверяем сохранённое видео…');
     const verified = await verifyVideo(N, totalDuration / 1000, x.signal);
     e('exportPreview').dataset.expectedDuration = String(totalDuration / 1000);
     e('exportPreview').dataset.actualDuration = String(verified.duration);
     y = new File([N], "thauma-" + a.design + "-opening." + (R.includes("mp4") ? "mp4" : "webm"), { type: R.split(";")[0] }), L = URL.createObjectURL(y), e("exportPreview").src = L, e("exportPreview").hidden = false, e("saveVideo").hidden = false, e("saveHelp").hidden = false, m(o("videoReady") + (R.includes("mp4") ? "" : " " + o("videoNoMp4")));
+    e('saveVideo').scrollIntoView({block:'center',behavior:'smooth'});
   } catch (error) {
+    console.warn('Video export failed', error.name, error.code || error.message);
     O();
     const incomplete = error.code === 'INCOMPLETE_VIDEO';
     m(incomplete ? (q === 'en' ? 'The video is incomplete and was not saved. Keep this page open and try again.' : 'Видео записалось не целиком — сохранение отменено. Не сворачивайте страницу и попробуйте ещё раз.') : o('videoError'));
   } finally {
     e('videoCanvas').hidden = true;
-    e('videoCanvas').removeAttribute('style');
     await soundtrack?.close();
     e("soundVideo").disabled = !a.audio?.blob;
     cancelAnimationFrame(d), n && n.state !== "inactive" && n.stop(), i == null || i.getTracks().forEach((l) => l.stop()), t == null || t.dispose(), x = null, T = false, g.classList.remove("recording"), e("downloadVideo").disabled = false, e("downloadVideo").textContent = o("video"), e("personalVideo").disabled = false;
+    painter?.dispose();
+    e('videoCanvas').width=1;e('videoCanvas').height=1;
   }
 }
 async function we() {
