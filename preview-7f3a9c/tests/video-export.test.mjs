@@ -47,6 +47,10 @@ test('rebases fragmented MP4 decode timestamps to zero without changing duration
   const fixed=await normalizeMp4Timeline(shifted),afterFix=await inspectMp4(fixed);
   assert.ok(afterFix.startTime<.001);
   assert.ok(Math.abs(afterFix.duration-before.duration)<.001);
+  // A second pass must be stable; normalizing headers must not change samples.
+  const fixedAgain=await normalizeMp4Timeline(fixed),afterAgain=await inspectMp4(fixedAgain);
+  assert.ok(afterAgain.startTime<.001);
+  assert.ok(Math.abs(afterAgain.duration-afterFix.duration)<.001);
 });
 
 test('rejects a complete short clip instead of calling it a full recording',async()=>{
