@@ -148,32 +148,24 @@ function sttsSummary(v,stts){
 // still as one stts entry. On affected iPhones that last duration can be far
 // longer than the recording itself. Rebase that one tail sample to the planned
 // recording/audio duration without changing the encoded frame data.
-function sanitizeFlatVideoTail(v,top,expectedSeconds=0){
-  const moov=need(top.find(b=>b.type==='moov')),tracks=[];
-  let targetSeconds=Math.max(0,Number(expectedSeconds)||0);
+function sanitizeFlatVideoTail(v,top){
+  const moov=need(top.find(b=>b.type==='moov'));
+  let changed=false;
   for(const trak of boxes(v,moov.data,moov.end).filter(b=>b.type==='trak')){
     const mdia=need(child(v,trak,'mdia')),mdhd=need(child(v,mdia,'mdhd')),hdlr=need(child(v,mdia,'hdlr'));
+    if(tag(v,hdlr.data+8)!=='vide')continue;
     const minf=need(child(v,mdia,'minf')),stbl=need(child(v,minf,'stbl')),stts=need(child(v,stbl,'stts'));
-    const kind=tag(v,hdlr.data+8),timescale=mediaTimescale(v,mdhd),summary=sttsSummary(v,stts);
-    const seconds=summary.ticks/timescale;
-    tracks.push({kind,timescale,summary,seconds});
-    if(kind==='soun'&&Number.isFinite(seconds))targetSeconds=Math.max(targetSeconds,seconds);
-  }
-  if(!targetSeconds)return false;
-  let changed=false;
-  for(const t of tracks.filter(t=>t.kind==='vide')){
-    const {summary,timescale}=t,last=summary.last;
+    const timescale=mediaTimescale(v,mdhd),summary=sttsSummary(v,stts),last=summary.last;
     if(!last||last.count!==1)continue;
-    const prefixTicks=summary.ticks-last.duration;
-    const targetTicks=Math.max(1,Math.round(targetSeconds*timescale));
-    const desired=Math.max(1,targetTicks-prefixTicks);
+    // captureStream(30) should end with another normal frame. Safari sometimes
+    // writes the elapsed recording time as the final sample duration, which
+    // doubles the apparent movie length. Replace only a clearly anomalous tail
+    // with the preceding frame duration (or 1/30 s fallback).
     const nominal=summary.previous||Math.max(1,Math.round(timescale/30));
-    const actualSeconds=summary.ticks/timescale;
     const suspicious=last.duration>=0x80000000||
-      last.duration>Math.max(nominal*8,timescale*.5)||
-      actualSeconds>targetSeconds+2;
-    if(suspicious&&desired!==last.duration&&desired>0&&desired<timescale*30){
-      v.setUint32(last.pos,desired);changed=true;
+      last.duration>Math.max(nominal*8,timescale*.5);
+    if(suspicious&&last.duration!==nominal){
+      v.setUint32(last.pos,nominal);changed=true;
     }
   }
   return changed;
@@ -306,7 +298,7 @@ export async function normalizeMp4Timeline(blob,signal,{expectedDuration=0}={}){
   if(signal?.aborted)throw new DOMException('Recording interrupted','AbortError');
   const v=new DataView(buffer),top=boxes(v),first=new Map(),entries=[];
   let changed=sanitizeWrappedSampleDurations(v,top);
-  if(sanitizeFlatVideoTail(v,top,expectedDuration))changed=true;
+  if(sanitizeFlatVideoTail(v,top))changed=true;
   for(const moof of top.filter(b=>b.type==='moof')){
     for(const traf of boxes(v,moof.data,moof.end).filter(b=>b.type==='traf')){
       const tfhd=child(v,traf,'tfhd'),tfdt=child(v,traf,'tfdt');
