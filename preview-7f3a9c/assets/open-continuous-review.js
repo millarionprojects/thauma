@@ -231,9 +231,20 @@ async function he() {
     u.hidden = false;
     painter = createExportPainter({canvas:u, draw:E, sceneSeconds:Y[a.design], presentationSeconds:PRESENTATION_SECONDS,
       onStill:()=>{t?.dispose();t=null;c.width=1;c.height=1;}});
-    E(0), i = u.captureStream(30);
+    E(0);
+    // WebKit can be sensitive to the automatic canvas capture cadence. Prefer
+    // manual delivery so every frame we actually paint is handed to the recorder.
+    i = u.captureStream(0);
+    let videoTrack = i.getVideoTracks()[0] || null;
+    let manualFrames = !!videoTrack && typeof videoTrack.requestFrame === 'function';
+    if (!manualFrames) {
+      i.getTracks().forEach(track=>track.stop());
+      i = u.captureStream(30);
+      videoTrack = i.getVideoTracks()[0] || null;
+    }
     if (soundtrack) i.addTrack(soundtrack.track);
     const totalDuration = recordingLength(Y[a.design], soundtrack?.duration || 0) * 1e3;
+    const isIOS = /iP(?:hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     // H.264 level 3.1 accommodates 720x1280 at 30 fps; level 3.0 does not.
     const w = (soundtrack ? ["video/mp4;codecs=avc1.42E01F,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm;codecs=vp8,opus", "video/webm"] : ["video/mp4;codecs=avc1.42E01F", "video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp8", "video/webm"]).find((p) => MediaRecorder.isTypeSupported(p));
     if (!w) throw Error("No recording format");
@@ -249,12 +260,14 @@ async function he() {
     });
     D.catch(() => {
     });
-    // Let the native encoder flush periodically instead of buffering the whole
-    // recording internally. All chunks are collected through the final stop.
     const started = waitForMedia(n, 'start', x.signal);
     phase='recording';
-    n.start(1000);
+    // Avoid one-second MP4 fragmentation for short iPhone exports. stop() still
+    // emits the complete final Blob; timeslices remain for unusually long clips.
+    if (isIOS && totalDuration <= 60000) n.start();
+    else n.start(1000);
     await started;
+    if (manualFrames) videoTrack.requestFrame();
     soundtrack?.start();
     await new Promise((p, A) => {
       let lastPercent = -1;
@@ -270,9 +283,8 @@ async function he() {
           }
           try {
             const M = S - ne;
-            painter.paint(M / 1000);
-            // captureStream(30) supplies frames. requestFrame() here would
-            // override that cap and enqueue 60/120 fps on faster displays.
+            const painted = painter.paint(M / 1000);
+            if (painted && manualFrames) videoTrack.requestFrame();
             const percent = Math.min(99, Math.floor(M / totalDuration * 100));
             if (percent !== lastPercent) {
               lastPercent = percent;
@@ -290,6 +302,12 @@ async function he() {
       }
       d = requestAnimationFrame(j);
     });
+    // Push one explicit final still and give WebKit a brief turn to hand it to
+    // the encoder before stop(), preventing the last frame from being stranded.
+    if (manualFrames) {
+      videoTrack.requestFrame();
+      await new Promise(resolve=>setTimeout(resolve,isIOS?180:60));
+    }
     complete = true;
     phase='finishing';
     const stopped = waitForMedia(n, 'stop', x.signal);
@@ -326,7 +344,10 @@ async function he() {
     O();
     const incomplete = error.code === 'INCOMPLETE_VIDEO';
     const stage=q==='en'?{audio:'audio preparation',scene:'animation preparation',recording:'recording',finishing:'finishing the file',checking:'checking the file'}[phase]:{audio:'подготовка звука',scene:'подготовка анимации',recording:'запись',finishing:'завершение файла',checking:'проверка файла'}[phase];
-    m(incomplete ? (q === 'en' ? 'The video or audio is incomplete. Keep the page open and try again.' : 'Видео или звук записались не целиком. Не сворачивайте страницу и попробуйте ещё раз.') : (q==='en'?`Could not finish ${stage}.`:`Не удалось завершить этап «${stage}».`));
+    const actual=Number.isFinite(error.actualDuration)?error.actualDuration.toFixed(1).replace('.',q==='en'?'.':','):null;
+    const expected=Number.isFinite(error.expectedDuration)?error.expectedDuration.toFixed(1).replace('.',q==='en'?'.':','):null;
+    const durationDetail=actual&&expected?(q==='en'?` (${actual} of ${expected} s)`:` (${actual} из ${expected} с)`):'';
+    m(incomplete ? (q === 'en' ? `The video or audio is incomplete${durationDetail}. Keep the page open and try again.` : `Видео или звук записались не целиком${durationDetail}. Не сворачивайте страницу и попробуйте ещё раз.`) : (q==='en'?`Could not finish ${stage}.`:`Не удалось завершить этап «${stage}».`));
     e('revealStatus').dataset.exportError=phase+':'+(error.code||error.name);
   } finally {
     e('videoCanvas').hidden = true;
