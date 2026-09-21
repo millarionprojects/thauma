@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {inspectMp4,normalizeMp4Timeline} from '../assets/mp4-integrity.js';
-import {verifyVideo} from '../assets/export-integrity.js';
+import {verifyVideo,checkDuration} from '../assets/export-integrity.js';
 import {shareVideoFile,saveMessage} from '../assets/export-save.js';
 
 const dir=mkdtempSync(join(tmpdir(),'thauma-export-'));
@@ -51,6 +51,10 @@ test('rebases fragmented MP4 decode timestamps to zero without changing duration
   const fixedAgain=await normalizeMp4Timeline(fixed),afterAgain=await inspectMp4(fixedAgain);
   assert.ok(afterAgain.startTime<.001);
   assert.ok(Math.abs(afterAgain.duration-afterFix.duration)<.001);
+});
+
+test('rejects an absurdly long clip instead of accepting only a lower duration bound',async()=>{
+  assert.throws(()=>checkDuration(7158294.75,15.9),{code:'INCOMPLETE_VIDEO'});
 });
 
 test('rejects a complete short clip instead of calling it a full recording',async()=>{
