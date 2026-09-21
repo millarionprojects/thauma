@@ -53,6 +53,10 @@ test('rebases fragmented MP4 decode timestamps to zero without changing duration
   assert.ok(Math.abs(afterAgain.duration-afterFix.duration)<.001);
 });
 
+test('accepts a video that contains the full required content even if optional tail is short',()=>{
+  assert.equal(checkDuration(18.9,18.8),18.9);
+});
+
 test('rejects an absurdly long clip instead of accepting only a lower duration bound',async()=>{
   assert.throws(()=>checkDuration(7158294.75,15.9),{code:'INCOMPLETE_VIDEO'});
 });
