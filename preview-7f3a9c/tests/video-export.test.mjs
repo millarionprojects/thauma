@@ -6,7 +6,7 @@ import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {inspectMp4} from '../assets/mp4-integrity.js';
+import {inspectMp4,normalizeMp4Timeline} from '../assets/mp4-integrity.js';
 import {verifyVideo} from '../assets/export-integrity.js';
 import {shareVideoFile,saveMessage} from '../assets/export-save.js';
 
@@ -29,6 +29,24 @@ for(const [name,{blob,info}] of Object.entries(fixtures))test(`${name}: encoded 
   assert.equal(result.width,video.width);assert.equal(result.height,video.height);
   assert.equal(result.tracks.find(t=>t.kind==='vide').samples,90);
   assert.equal(result.tracks.find(t=>t.kind==='soun').codec,'mp4a');
+});
+
+test('rebases fragmented MP4 decode timestamps to zero without changing duration',async()=>{
+  const source=fixtures.fragmented.blob,bytes=new Uint8Array(await source.arrayBuffer()),v=new DataView(bytes.buffer);
+  const add=3_600_000_000;
+  for(let i=4;i+16<bytes.length;i++){
+    if(bytes[i]!==0x74||bytes[i+1]!==0x66||bytes[i+2]!==0x64||bytes[i+3]!==0x74)continue;
+    const data=i+4,version=bytes[data];
+    if(version===1){
+      const hi=v.getUint32(data+4),lo=v.getUint32(data+8),value=hi*4294967296+lo+add;
+      v.setUint32(data+4,Math.floor(value/4294967296));v.setUint32(data+8,value>>>0);
+    }else v.setUint32(data+4,(v.getUint32(data+4)+add)>>>0);
+  }
+  const shifted=new Blob([bytes],{type:'video/mp4'}),before=await inspectMp4(shifted);
+  assert.ok(before.startTime>1000);
+  const fixed=await normalizeMp4Timeline(shifted),afterFix=await inspectMp4(fixed);
+  assert.ok(afterFix.startTime<.001);
+  assert.ok(Math.abs(afterFix.duration-before.duration)<.001);
 });
 
 test('rejects a complete short clip instead of calling it a full recording',async()=>{
