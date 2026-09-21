@@ -3,8 +3,9 @@ import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-a
 import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
-import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260920-video1';
+import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260921-save3';
 import { createExportPainter } from './export-render.js?v=20260921-video2';
+import { shareVideoFile, saveMessage } from './export-save.js?v=20260921-save3';
 async function de(t) {
   if (!(t != null && t.blob)) return null;
   if (t.type === "application/pdf") {
@@ -39,7 +40,7 @@ function se(t, i = false) {
   return i ? { ...t } : { design: t.design, theme: t.theme, lang: t.lang, title: t.lang === "en" ? "A gift for you" : "\u041F\u043E\u0434\u0430\u0440\u043E\u043A \u0434\u043B\u044F \u0432\u0430\u0441", amount: "", message: t.lang === "en" ? "A moment to remember." : "\u041C\u043E\u043C\u0435\u043D\u0442, \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u0445\u043E\u0447\u0435\u0442\u0441\u044F \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C." };
 }
 const e = (t) => document.getElementById(t), b = new URLSearchParams(location.search), g = e("giftStage"), h = e("openingScene"), C = e("revealScene"), le = e("sceneCanvas"), F = matchMedia("(prefers-reduced-motion: reduce)");
-let a = null, s = null, k = "loading", V = null, J = null, L = null, y = null, T = false, U = false, x = null, K = null, _ = null;
+let a = null, s = null, k = "loading", V = null, J = null, L = null, y = null, T = false, x = null, K = null, _ = null;
 let certificateTransition = null;
 function m(t) {
   e("revealStatus").textContent = t;
@@ -50,6 +51,7 @@ function v(t) {
 function ce() {
   const t = { openingEyebrow: "forYou", openButton: "open", sceneLoading: "loading", yourGiftLabel: "yourGift", downloadCertificate: "certificate", downloadVideo: "video", saveVideo: "saveVideo", replayButton: "replay", privacyHint: "privacyHint", saveHelp: "saveHint" };
   for (const [i, n] of Object.entries(t)) e(i).textContent = o(n);
+  e('downloadVideoFile').textContent=q==='en'?'Download video':'Скачать видео';
   e("openingTitle").innerHTML = o("tap"), e("closeButton").setAttribute("aria-label", o("close")), e("giftButton").setAttribute("aria-label", o("openGift")), document.querySelectorAll("[data-i18n]").forEach((i) => {
     i.textContent = o(i.dataset.i18n);
   });
@@ -183,6 +185,7 @@ function ge() {
 }
 function O() {
   y = null, L && URL.revokeObjectURL(L), L = null, e("exportPreview").pause(), e("exportPreview").removeAttribute("src"), e("exportPreview").load(), e("exportPreview").hidden = true, e("saveVideo").hidden = true, e("saveHelp").hidden = true;
+  e('downloadVideoFile').hidden=true;e('downloadVideoFile').removeAttribute('href');
 }
 e("personalVideo").onchange = () => {
   O(), e("privacyHint").textContent = o(e("personalVideo").checked ? "personalWarning" : "privacyHint"), e("privacyHint").classList.toggle("warning", e("personalVideo").checked), m("");
@@ -203,11 +206,13 @@ async function he() {
     return;
   }
   O(), T = true, g.classList.add("recording"), e("downloadVideo").disabled = true, e("downloadVideo").textContent = o("recording"), e("personalVideo").disabled = true, e("giftAudio").pause(), m("");
-  let t = null, i = null, n = null, d = null, soundtrack = null, painter = null;
+  let t = null, i = null, n = null, d = null, soundtrack = null, painter = null, phase='audio';
   x = new AbortController();
   e("soundVideo").disabled = true;
   try {
     soundtrack = await prepareSoundtrack(a.audio?.blob, e("soundVideo").checked, x.signal);
+    const audioSeconds=soundtrack?.duration||0;
+    phase='scene';
     if (x.signal.aborted) throw Error("Aborted");
     let E = function(p, elapsed = 0) {
       t.render(p, p * Y[a.design]);
@@ -247,6 +252,7 @@ async function he() {
     // Let the native encoder flush periodically instead of buffering the whole
     // recording internally. All chunks are collected through the final stop.
     const started = waitForMedia(n, 'start', x.signal);
+    phase='recording';
     n.start(1000);
     await started;
     soundtrack?.start();
@@ -285,6 +291,7 @@ async function he() {
       d = requestAnimationFrame(j);
     });
     complete = true;
+    phase='finishing';
     const stopped = waitForMedia(n, 'stop', x.signal);
     n.stop();
     await stopped;
@@ -300,17 +307,27 @@ async function he() {
     t?.dispose(); t=null; c.width=1; c.height=1;
     u.hidden=true; u.width=1; u.height=1;
     n.ondataavailable=null; n.onstop=null; n.onerror=null; n=null;
-    m(q === 'en' ? 'Checking the saved video…' : 'Проверяем сохранённое видео…');
-    const verified = await verifyVideo(N, totalDuration / 1000, x.signal);
+    phase='checking';
+    m(q === 'en' ? 'Checking the video file…' : 'Проверяем видеофайл…');
+    e('downloadVideo').textContent=q==='en'?'Checking video…':'Проверяем видео…';
+    const verified = await verifyVideo(N, totalDuration / 1000, x.signal,{audioSeconds});
     e('exportPreview').dataset.expectedDuration = String(totalDuration / 1000);
     e('exportPreview').dataset.actualDuration = String(verified.duration);
     y = new File([N], "thauma-" + a.design + "-opening." + (R.includes("mp4") ? "mp4" : "webm"), { type: R.split(";")[0] }), L = URL.createObjectURL(y), e("exportPreview").src = L, e("exportPreview").hidden = false, e("saveVideo").hidden = false, e("saveHelp").hidden = false, m(o("videoReady") + (R.includes("mp4") ? "" : " " + o("videoNoMp4")));
+    e('downloadVideoFile').href=L;e('downloadVideoFile').download=y.name;e('downloadVideoFile').hidden=false;
+    e('saveHelp').textContent=q==='en'
+      ? 'For Photos, choose Save / share → Save Video if offered. Download video saves the file to Downloads.'
+      : 'Для «Фото»: «Сохранить / поделиться» → «Сохранить видео», если этот пункт доступен. «Скачать видео» сохраняет файл в «Загрузки».';
+    const seconds=verified.duration.toFixed(1).replace('.',q==='en'?'.':',');
+    m((q==='en'?`Video ready: ${seconds} s. Choose how to save it.`:`Видео готово: ${seconds} с. Выберите способ сохранения.`)+(R.includes('mp4')?'':' '+o('videoNoMp4')));
     e('saveVideo').scrollIntoView({block:'center',behavior:'smooth'});
   } catch (error) {
     console.warn('Video export failed', error.name, error.code || error.message);
     O();
     const incomplete = error.code === 'INCOMPLETE_VIDEO';
-    m(incomplete ? (q === 'en' ? 'The video is incomplete and was not saved. Keep this page open and try again.' : 'Видео записалось не целиком — сохранение отменено. Не сворачивайте страницу и попробуйте ещё раз.') : o('videoError'));
+    const stage=q==='en'?{audio:'audio preparation',scene:'animation preparation',recording:'recording',finishing:'finishing the file',checking:'checking the file'}[phase]:{audio:'подготовка звука',scene:'подготовка анимации',recording:'запись',finishing:'завершение файла',checking:'проверка файла'}[phase];
+    m(incomplete ? (q === 'en' ? 'The video or audio is incomplete. Keep the page open and try again.' : 'Видео или звук записались не целиком. Не сворачивайте страницу и попробуйте ещё раз.') : (q==='en'?`Could not finish ${stage}.`:`Не удалось завершить этап «${stage}».`));
+    e('revealStatus').dataset.exportError=phase+':'+(error.code||error.name);
   } finally {
     e('videoCanvas').hidden = true;
     await soundtrack?.close();
@@ -321,23 +338,20 @@ async function he() {
   }
 }
 async function we() {
-  var t;
-  if (y) try {
-    if (!U && ((t = navigator.canShare) != null && t.call(navigator, { files: [y] }))) {
-      await navigator.share({ files: [y], title: "Thauma" }), m(o("saveHint"));
-      return;
-    }
-    const i = document.createElement("a");
-    i.href = L, i.download = y.name, document.body.append(i), i.click(), i.remove(), m(o("downloadStarted"));
-  } catch (i) {
-    i.name !== "AbortError" && (U = true, m(o("shareFallback")));
-  }
+  if(!y||e('saveVideo').disabled)return;
+  e('saveVideo').disabled=true;
+  try {m(saveMessage(await shareVideoFile(y),q));}
+  catch(error){m(saveMessage(error,q));console.warn('Video share failed',error.name);}
+  finally {e('saveVideo').disabled=false;}
 }
 e("giftButton").onclick = te;
 e("openButton").onclick = te;
 e("replayButton").onclick = ge;
 e("downloadVideo").onclick = he;
 e("saveVideo").onclick = we;
+// A persistent, user-clicked download link is independent of the share promise.
+// Do not replace/remove it immediately after clicking: keep the Blob URL alive.
+e('downloadVideoFile').onclick=()=>{m(o('downloadStarted'));};
 e("closeButton").onclick = () => {
   T || (window.opener ? window.close() : location.href = "index.html");
 };
