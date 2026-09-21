@@ -232,16 +232,10 @@ async function he() {
     painter = createExportPainter({canvas:u, draw:E, sceneSeconds:Y[a.design], presentationSeconds:PRESENTATION_SECONDS,
       onStill:()=>{t?.dispose();t=null;c.width=1;c.height=1;}});
     E(0);
-    // WebKit can be sensitive to the automatic canvas capture cadence. Prefer
-    // manual delivery so every frame we actually paint is handed to the recorder.
-    i = u.captureStream(0);
-    let videoTrack = i.getVideoTracks()[0] || null;
-    let manualFrames = !!videoTrack && typeof videoTrack.requestFrame === 'function';
-    if (!manualFrames) {
-      i.getTracks().forEach(track=>track.stop());
-      i = u.captureStream(30);
-      videoTrack = i.getVideoTracks()[0] || null;
-    }
+    // Keep a regular 30 fps capture clock. Manual requestFrame() on iOS can
+    // produce MP4 timestamps with a huge media-time origin (the clip plays, but
+    // native controls and uploaders can report hundreds of hours of duration).
+    i = u.captureStream(30);
     if (soundtrack) i.addTrack(soundtrack.track);
     const totalDuration = recordingLength(Y[a.design], soundtrack?.duration || 0) * 1e3;
     const isIOS = /iP(?:hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -267,7 +261,6 @@ async function he() {
     if (isIOS && totalDuration <= 60000) n.start();
     else n.start(1000);
     await started;
-    if (manualFrames) videoTrack.requestFrame();
     soundtrack?.start();
     await new Promise((p, A) => {
       let lastPercent = -1;
@@ -283,8 +276,7 @@ async function he() {
           }
           try {
             const M = S - ne;
-            const painted = painter.paint(M / 1000);
-            if (painted && manualFrames) videoTrack.requestFrame();
+            painter.paint(M / 1000);
             const percent = Math.min(99, Math.floor(M / totalDuration * 100));
             if (percent !== lastPercent) {
               lastPercent = percent;
@@ -302,12 +294,9 @@ async function he() {
       }
       d = requestAnimationFrame(j);
     });
-    // Push one explicit final still and give WebKit a brief turn to hand it to
-    // the encoder before stop(), preventing the last frame from being stranded.
-    if (manualFrames) {
-      videoTrack.requestFrame();
-      await new Promise(resolve=>setTimeout(resolve,isIOS?180:60));
-    }
+    // Keep the completed still on the canvas briefly so the 30 fps capture
+    // clock can submit final frames before Safari finalizes the MP4.
+    await new Promise(resolve=>setTimeout(resolve,isIOS?220:60));
     complete = true;
     phase='finishing';
     const stopped = waitForMedia(n, 'stop', x.signal);
