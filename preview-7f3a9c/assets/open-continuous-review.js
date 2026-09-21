@@ -3,7 +3,8 @@ import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-a
 import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
-import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260921-save3';
+import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-timeline1';
+import { normalizeMp4Timeline } from './mp4-integrity.js?v=20260922-timeline1';
 import { createExportPainter } from './export-render.js?v=20260921-video2';
 import { shareVideoFile, saveMessage } from './export-save.js?v=20260921-save3';
 async function de(t) {
@@ -303,9 +304,11 @@ async function he() {
     n.stop();
     await stopped;
     await D;
-    const R = n.mimeType || w, N = new Blob(I, { type: R });
+    const R = n.mimeType || w;
+    let N = new Blob(I, { type: R });
     I.length = 0;
     if (!N.size) throw Error("Empty recording");
+    if (R.toLowerCase().includes("mp4")) N = await normalizeMp4Timeline(N, x.signal);
     // Release the encoder, audio graph and scene surfaces before a decoder is
     // created to validate the result. Mobile must not keep both pipelines live.
     i.getTracks().forEach(track=>track.stop()); i=null;
