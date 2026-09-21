@@ -132,6 +132,54 @@ function flatSamples(v,t,ranges){
   t.samples=count;t.duration=ticks/t.timescale;t.first=0;t.last=ticks;
 }
 
+function sanitizeWrappedSampleDurations(v,top){
+  const moov=need(top.find(b=>b.type==='moov')),meta=new Map();
+  for(const trak of boxes(v,moov.data,moov.end).filter(b=>b.type==='trak')){
+    const tkhd=need(child(v,trak,'tkhd')),mdia=need(child(v,trak,'mdia')),mdhd=need(child(v,mdia,'mdhd'));
+    meta.set(trackId(v,tkhd),{timescale:mediaTimescale(v,mdhd),defaultDuration:0});
+  }
+  const mvex=child(v,moov,'mvex');
+  if(mvex)for(const trex of boxes(v,mvex.data,mvex.end).filter(b=>b.type==='trex')){
+    const t=meta.get(u32(v,trex.data+4));if(t)t.defaultDuration=u32(v,trex.data+12);
+  }
+  let changed=false;
+  for(const moof of top.filter(b=>b.type==='moof')){
+    for(const traf of boxes(v,moof.data,moof.end).filter(b=>b.type==='traf')){
+      const tfhd=need(child(v,traf,'tfhd')),flags=u32(v,tfhd.data)&0xffffff,id=u32(v,tfhd.data+4);
+      const t=meta.get(id);if(!t)continue;
+      let p=tfhd.data+8,duration=t.defaultDuration||0;
+      if(flags&1)p+=8;if(flags&2)p+=4;
+      if(flags&8){
+        duration=u32(v,p);
+        if(duration>=0x80000000){
+          duration=Math.max(1,Math.round(t.timescale/30));
+          v.setUint32(p,duration);changed=true;
+        }
+        p+=4;
+      }
+      if(flags&16)p+=4;if(flags&32)p+=4;
+      let previous=duration&&duration<0x80000000?duration:Math.max(1,Math.round(t.timescale/30));
+      for(const run of boxes(v,traf.data,traf.end).filter(b=>b.type==='trun')){
+        const bits=u32(v,run.data)&0xffffff,count=u32(v,run.data+4);p=run.data+8;
+        if(bits&1)p+=4;if(bits&4)p+=4;
+        for(let i=0;i<count;i++){
+          if(bits&0x100){
+            const pos=p,raw=u32(v,p);p+=4;
+            if(raw>=0x80000000){
+              v.setUint32(pos,Math.max(1,previous));changed=true;
+            }else if(raw>0)previous=raw;
+          }else if(duration>0)previous=duration;
+          if(bits&0x200)p+=4;
+          if(bits&0x400)p+=4;
+          if(bits&0x800)p+=4;
+          if(p>run.end)fail('Truncated MP4 fragment sample');
+        }
+      }
+    }
+  }
+  return changed;
+}
+
 function fragment(v,offset,tracks,ranges){
   const root=need(boxes(v).find(b=>b.type==='moof'));
   let previousEnd=offset;
@@ -210,6 +258,7 @@ export async function normalizeMp4Timeline(blob,signal){
   const buffer=await blob.arrayBuffer();
   if(signal?.aborted)throw new DOMException('Recording interrupted','AbortError');
   const v=new DataView(buffer),top=boxes(v),first=new Map(),entries=[];
+  let changed=sanitizeWrappedSampleDurations(v,top);
   for(const moof of top.filter(b=>b.type==='moof')){
     for(const traf of boxes(v,moof.data,moof.end).filter(b=>b.type==='traf')){
       const tfhd=child(v,traf,'tfhd'),tfdt=child(v,traf,'tfdt');
@@ -219,7 +268,6 @@ export async function normalizeMp4Timeline(blob,signal){
       entries.push({id,box:tfdt,time});
     }
   }
-  let changed=false;
   for(const {id,box,time} of entries){
     const origin=first.get(id)||0,next=time-origin;
     if(next!==time){setTfdtValue(v,box,next);changed=true;}
