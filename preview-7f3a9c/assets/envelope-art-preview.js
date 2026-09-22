@@ -1,4 +1,4 @@
-import * as base from './envelope-art-continuous.js?base=20260916-astra1';
+import * as base from './envelope-art-continuous.js?base=20260922-white1';
 
 const clamp=v=>Math.max(0,Math.min(1,v));
 const smooth=(v,a,b)=>{const x=clamp((v-a)/(b-a));return x*x*x*(x*(x*6-15)+10);};
@@ -41,9 +41,9 @@ function drawFocusedInsert(ctx,gift,{card,image,frameOpacity}){
   if(frameOpacity>0){
     ctx.globalAlpha*=frameOpacity;
     ctx.shadowColor='rgba(0,0,0,.24)';ctx.shadowBlur=card.w*.03;ctx.shadowOffsetY=card.h*.025;
-    ctx.fillStyle='#fffdfa';ctx.fillRect(card.x,card.y,card.w,card.h);ctx.shadowColor='transparent';
+    ctx.fillStyle='#ffffff';ctx.fillRect(card.x,card.y,card.w,card.h);ctx.shadowColor='transparent';
     if(!image){
-      ctx.fillStyle='#25423c';ctx.textAlign='center';ctx.font=`500 ${card.w*.065}px Georgia`;
+      ctx.fillStyle='#1F2937';ctx.textAlign='center';ctx.font=`500 ${card.w*.065}px Georgia`;
       ctx.fillText(gift.title||(gift.lang==='en'?'A gift for you':'Подарок для вас'),card.x+card.w/2,card.y+card.h*.46,card.w*.87);
       if(gift.amount){ctx.font=`${card.w*.045}px Arial`;ctx.fillText(String(gift.amount),card.x+card.w/2,card.y+card.h*.67,card.w*.85);}
     }
@@ -63,7 +63,7 @@ export function drawEnvelope(ctx,width,height,art,gift,progress=0,options={}){
     const pc=layer.getContext('2d');pc.setTransform(ratio,0,0,ratio,0,0);
     base.drawEnvelope(pc,width,height,art,gift,remap(raw),{...options,transparent:true,drawInsert:null});
     ctx.clearRect(0,0,width,height);
-    if(!options.transparent){ctx.fillStyle=options.theme==='dark'?'#0b191b':'#e8f3ef';ctx.fillRect(0,0,width,height);}
+    if(!options.transparent){ctx.fillStyle='#ffffff';ctx.fillRect(0,0,width,height);}
     // Fade a completed layer, never the overlapping perspective strips separately.
     ctx.save();ctx.globalAlpha*=state.packagingOpacity;ctx.drawImage(layer,0,0,width,height);ctx.restore();
   }else base.drawEnvelope(ctx,width,height,art,gift,remap(raw),{...options,...(hidden?{drawInsert:null}:{})});

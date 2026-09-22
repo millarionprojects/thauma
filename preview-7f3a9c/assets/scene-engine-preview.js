@@ -1,4 +1,4 @@
-import * as base from './scene-engine-DthTCrw0.js?base=1';
+import * as base from './scene-engine-DthTCrw0.js?base=20260922-white1';
 
 const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
 const mix=(a,b,t)=>a+(b-a)*t;
@@ -212,6 +212,15 @@ export class G extends base.G{
   constructor(...args){
     super(...args);
     this.renderer.toneMappingExposure=1.02;
+  }
+  setTheme(theme){
+    super.setTheme(theme);
+    // White studio backdrop; retain the soft contact shadow without a green floor.
+    this.scene.background?.set('#ffffff');
+    this.scene.fog?.color.set('#ffffff');
+    this.floor.visible=false;
+    this.contact.material.color.set('#111111');
+    this.renderer.setClearColor('#ffffff',this.transparent?0:1);
   }
   setDesign(design,gift={}){
     super.setDesign(design,gift);

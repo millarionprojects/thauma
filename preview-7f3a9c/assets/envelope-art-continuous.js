@@ -100,14 +100,14 @@ export async function prepareEnvelope(design) {
 }
 function card(ctx, gift, x, y, w, h) {
   ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.24)'; ctx.shadowBlur = w * .03; ctx.shadowOffsetY = h * .025;
-  ctx.fillStyle = '#fffdfa'; ctx.fillRect(x, y, w, h); ctx.shadowColor = 'transparent';
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, w, h); ctx.shadowColor = 'transparent';
   const image = gift.certificateImage;
   if (image && (image.width || image.naturalWidth)) {
     const iw = image.naturalWidth || image.width, ih = image.naturalHeight || image.height;
     const margin = w * .018, scale = Math.min((w - margin * 2) / iw, (h - margin * 2) / ih);
     ctx.drawImage(image, x + (w - iw * scale) / 2, y + (h - ih * scale) / 2, iw * scale, ih * scale);
   } else {
-    const en = gift.lang === 'en'; ctx.fillStyle = '#25423c'; ctx.textAlign = 'center'; ctx.font = `500 ${w * .065}px Georgia`;
+    const en = gift.lang === 'en'; ctx.fillStyle = '#1F2937'; ctx.textAlign = 'center'; ctx.font = `500 ${w * .065}px Georgia`;
     ctx.fillText(gift.file ? (en ? 'Your attached document' : 'Ваш документ') : gift.title || (en ? 'A gift for you' : 'Подарок для вас'), x + w / 2, y + h * .46, w * .87);
     ctx.font = `${w * .045}px Arial`;
     if (gift.amount) ctx.fillText(String(gift.amount), x + w / 2, y + h * .67, w * .85);
@@ -137,7 +137,7 @@ export function envelopeLayout(width, height, art, thumbnail = false) {
 export function drawEnvelope(ctx, width, height, art, gift, progress = 0,
   {thumbnail = false, transparent = false, theme = 'light', drawInsert = card} = {}) {
   ctx.clearRect(0, 0, width, height);
-  if (!transparent) { ctx.fillStyle = theme === 'dark' ? '#0b191b' : '#e8f3ef'; ctx.fillRect(0, 0, width, height); }
+  if (!transparent) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, width, height); }
   const {angle, lift} = envelopePose(progress), {w, h, x, y} = envelopeLayout(width, height, art, thumbnail);
   ctx.save(); ctx.translate(x, y);
   ctx.shadowColor = 'rgba(0,0,0,.18)'; ctx.shadowBlur = w * .035; ctx.shadowOffsetY = h * .035;
