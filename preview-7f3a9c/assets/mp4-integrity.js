@@ -339,7 +339,9 @@ export async function normalizeMp4Timeline(blob,signal,{expectedDuration=0}={}){
     const trackMovieDuration=Math.max(1,Math.round(track.duration*movieScale));
     if(fullDuration(v,mdhd)!==mediaDuration){setFullDuration(v,mdhd,mediaDuration);changed=true;}
     if(fullDuration(v,tkhd)!==trackMovieDuration){setFullDuration(v,tkhd,trackMovieDuration);changed=true;}
-    setEditList(v,trak,trackMovieDuration);
+    // Preserve MediaRecorder's original edit list. Only normalize actual
+    // movie/track/media duration headers; rewriting elst can make Safari's
+    // HTMLMediaElement.duration double-count the same interval.
     movieDuration=Math.max(movieDuration,trackMovieDuration);
   }
   if(movieDuration){
