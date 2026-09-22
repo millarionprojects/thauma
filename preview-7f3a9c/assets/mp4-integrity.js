@@ -181,6 +181,23 @@ function sanitizeFlatVideoTail(v,top,expectedSeconds=0){
   return changed;
 }
 
+function neutralizeEditLists(v,top){
+  const moov=need(top.find(b=>b.type==='moov'));
+  let changed=false;
+  for(const trak of boxes(v,moov.data,moov.end).filter(b=>b.type==='trak')){
+    const edts=child(v,trak,'edts');
+    if(!edts)continue;
+    // Replace the container type only. Keeping the exact byte length avoids
+    // moving mdat or rewriting stco/co64 offsets.
+    const p=edts.start+4;
+    if(tag(v,p)!=='free'){
+      for(const [i,c] of [...'free'].entries())v.setUint8(p+i,c.charCodeAt(0));
+      changed=true;
+    }
+  }
+  return changed;
+}
+
 function sanitizeWrappedSampleDurations(v,top){
   const moov=need(top.find(b=>b.type==='moov')),meta=new Map();
   for(const trak of boxes(v,moov.data,moov.end).filter(b=>b.type==='trak')){
@@ -323,6 +340,10 @@ export async function normalizeMp4Timeline(blob,signal,{expectedDuration=0}={}){
     if(next!==time){setTfdtValue(v,box,next);changed=true;}
   }
 
+  // Safari on iPhone can double the apparent duration of MediaRecorder MP4s
+  // when an edit list is present. Neutralize edts in-place without moving media.
+  if(neutralizeEditLists(v,top))changed=true;
+
   // Compute the real sample durations after rebasing and write the same
   // duration into every movie/track header Safari or an uploader may consult.
   const normalized=new Blob([buffer],{type:blob.type});
@@ -341,9 +362,6 @@ export async function normalizeMp4Timeline(blob,signal,{expectedDuration=0}={}){
     const trackMovieDuration=Math.max(1,Math.round(track.duration*movieScale));
     if(fullDuration(v,mdhd)!==mediaDuration){setFullDuration(v,mdhd,mediaDuration);changed=true;}
     if(fullDuration(v,tkhd)!==trackMovieDuration){setFullDuration(v,tkhd,trackMovieDuration);changed=true;}
-    // Keep edit-list duration consistent with the corrected track duration.
-    // Safari's broken export may put the doubled duration here too.
-    setEditList(v,trak,trackMovieDuration);
     movieDuration=Math.max(movieDuration,trackMovieDuration);
   }
   if(movieDuration){
