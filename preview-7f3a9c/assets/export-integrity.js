@@ -1,7 +1,7 @@
-import {inspectMp4} from './mp4-integrity.js?v=20260922-clock2';
+import {inspectMp4} from './mp4-integrity.js?v=20260922-sumfix1';
 // A non-empty recorder Blob is not evidence of a complete movie.
 export function checkDuration(actual, expected) {
-  if (!Number.isFinite(actual) || actual < expected - 0.35 || actual > expected + 2) {
+  if (!Number.isFinite(actual) || actual < expected - 0.35 || actual > expected + 0.35) {
     const error = new Error('Incomplete video');
     error.code = 'INCOMPLETE_VIDEO';
     error.actualDuration = actual;
