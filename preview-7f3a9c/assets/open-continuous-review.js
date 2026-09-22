@@ -3,8 +3,8 @@ import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-a
 import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
-import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-tail4';
-import { normalizeMp4Timeline } from './mp4-integrity.js?v=20260922-tail4';
+import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-end1';
+import { normalizeMp4Timeline } from './mp4-integrity.js?v=20260922-end1';
 import { createExportPainter } from './export-render.js?v=20260921-video2';
 import { shareVideoFile, saveMessage } from './export-save.js?v=20260921-save3';
 async function de(t) {
@@ -238,7 +238,9 @@ async function he() {
     // native controls and uploaders can report hundreds of hours of duration).
     i = u.captureStream(30);
     if (soundtrack) i.addTrack(soundtrack.track);
-    const totalDuration = recordingLength(Y[a.design], soundtrack?.duration || 0) * 1e3;
+    const visualSeconds=Y[a.design]+PRESENTATION_SECONDS;
+    const targetSeconds=recordingLength(visualSeconds,audioSeconds);
+    const totalDuration=targetSeconds*1e3;
     const isIOS = /iP(?:hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     // H.264 level 3.1 accommodates 720x1280 at 30 fps; level 3.0 does not.
     const w = (soundtrack ? ["video/mp4;codecs=avc1.42E01F,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm;codecs=vp8,opus", "video/webm"] : ["video/mp4;codecs=avc1.42E01F", "video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp8", "video/webm"]).find((p) => MediaRecorder.isTypeSupported(p));
@@ -295,9 +297,9 @@ async function he() {
       }
       d = requestAnimationFrame(j);
     });
-    // Keep the completed still on the canvas briefly so the 30 fps capture
-    // clock can submit final frames before Safari finalizes the MP4.
-    await new Promise(resolve=>setTimeout(resolve,isIOS?220:60));
+    // MediaRecorder.stop() flushes the encoder. Do not add a visible tail after
+    // the chosen movie end; one frame of scheduler latency is enough.
+    await new Promise(resolve=>setTimeout(resolve,isIOS?35:20));
     complete = true;
     phase='finishing';
     const stopped = waitForMedia(n, 'stop', x.signal);
@@ -308,7 +310,7 @@ async function he() {
     let N = new Blob(I, { type: R });
     I.length = 0;
     if (!N.size) throw Error("Empty recording");
-    if (R.toLowerCase().includes("mp4")) N = await normalizeMp4Timeline(N, x.signal,{expectedDuration:totalDuration/1000});
+    if (R.toLowerCase().includes("mp4")) N = await normalizeMp4Timeline(N, x.signal,{expectedDuration:targetSeconds});
     // Release the encoder, audio graph and scene surfaces before a decoder is
     // created to validate the result. Mobile must not keep both pipelines live.
     i.getTracks().forEach(track=>track.stop()); i=null;
@@ -320,8 +322,8 @@ async function he() {
     phase='checking';
     m(q === 'en' ? 'Checking the video file…' : 'Проверяем видеофайл…');
     e('downloadVideo').textContent=q==='en'?'Checking video…':'Проверяем видео…';
-    const plannedSeconds=totalDuration/1000;
-    const minimumVideoSeconds=Math.max(Y[a.design]+PRESENTATION_SECONDS+0.35,audioSeconds||0);
+    const plannedSeconds=targetSeconds;
+    const minimumVideoSeconds=targetSeconds;
     const verified = await verifyVideo(N, plannedSeconds, x.signal,{audioSeconds,minimumVideoSeconds});
     e('exportPreview').dataset.expectedDuration = String(plannedSeconds);
     e('exportPreview').dataset.minimumDuration = String(minimumVideoSeconds);
