@@ -148,34 +148,18 @@ function sttsSummary(v,stts){
 // still as one stts entry. On affected iPhones that last duration can be far
 // longer than the recording itself. Rebase that one tail sample to the planned
 // recording/audio duration without changing the encoded frame data.
-function sanitizeFlatVideoTail(v,top,expectedSeconds=0){
-  const moov=need(top.find(b=>b.type==='moov')),target=Math.max(0,Number(expectedSeconds)||0);
+function sanitizeFlatVideoTail(v,top){
+  const moov=need(top.find(b=>b.type==='moov'));
   let changed=false;
   for(const trak of boxes(v,moov.data,moov.end).filter(b=>b.type==='trak')){
     const mdia=need(child(v,trak,'mdia')),mdhd=need(child(v,mdia,'mdhd')),hdlr=need(child(v,mdia,'hdlr'));
     if(tag(v,hdlr.data+8)!=='vide')continue;
-    const minf=need(child(v,mdia,'minf')),stbl=need(child(v,minf,'stbl')),stts=need(child(v,stbl,'stts'));
-    const timescale=mediaTimescale(v,mdhd),summary=sttsSummary(v,stts),last=summary.last;
+    const minf=need(child(v,mdia,'minf')),stbl=need(child(v,minf,'stbl')),sttsBox=need(child(v,stbl,'stts'));
+    const timescale=mediaTimescale(v,mdhd),summary=sttsSummary(v,sttsBox),last=summary.last;
     if(!last||last.count!==1)continue;
     const nominal=summary.previous||Math.max(1,Math.round(timescale/30));
-    const prefixTicks=summary.ticks-last.duration;
-    const targetTicks=target?Math.max(1,Math.round(target*timescale)):prefixTicks+nominal;
-    // Safari represents a static final canvas as one long last sample. That is
-    // valid; the bug is that some builds write roughly the whole recording
-    // duration again instead of only the remaining time. Keep the hold, but
-    // clamp it to the exact planned end of the movie.
-    const desired=Math.max(nominal,targetTicks-prefixTicks);
-    // With a known movie end there is no reason to trust Safari's final sample
-    // duration. WebKit can write roughly the whole movie length into that one
-    // sample, producing: normal timeline + movie length again. Force the last
-    // sample to end exactly at target (within one nominal frame).
-    if(target&&prefixTicks<=targetTicks+nominal*2&&desired>0&&desired<timescale*30&&last.duration!==desired){
-      v.setUint32(last.pos,desired);changed=true;
-    }else if(!target){
-      const anomalous=last.duration>=0x80000000||last.duration>Math.max(nominal*8,timescale*.5);
-      if(anomalous&&last.duration!==nominal){
-        v.setUint32(last.pos,nominal);changed=true;
-      }
+    if((last.duration>=0x80000000||last.duration>Math.max(nominal*8,timescale*.5))&&last.duration!==nominal){
+      v.setUint32(last.pos,nominal);changed=true;
     }
   }
   return changed;
@@ -325,7 +309,7 @@ export async function normalizeMp4Timeline(blob,signal,{expectedDuration=0}={}){
   if(signal?.aborted)throw new DOMException('Recording interrupted','AbortError');
   const v=new DataView(buffer),top=boxes(v),first=new Map(),entries=[];
   let changed=sanitizeWrappedSampleDurations(v,top);
-  if(sanitizeFlatVideoTail(v,top,expectedDuration))changed=true;
+  if(sanitizeFlatVideoTail(v,top))changed=true;
   for(const moof of top.filter(b=>b.type==='moof')){
     for(const traf of boxes(v,moof.data,moof.end).filter(b=>b.type==='traf')){
       const tfhd=child(v,traf,'tfhd'),tfdt=child(v,traf,'tfdt');
@@ -339,10 +323,6 @@ export async function normalizeMp4Timeline(blob,signal,{expectedDuration=0}={}){
     const origin=first.get(id)||0,next=time-origin;
     if(next!==time){setTfdtValue(v,box,next);changed=true;}
   }
-
-  // Safari on iPhone can double the apparent duration of MediaRecorder MP4s
-  // when an edit list is present. Neutralize edts in-place without moving media.
-  if(neutralizeEditLists(v,top))changed=true;
 
   // Compute the real sample durations after rebasing and write the same
   // duration into every movie/track header Safari or an uploader may consult.
