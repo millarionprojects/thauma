@@ -3,9 +3,7 @@ import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-a
 import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
-import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-remux4';
-import { normalizeMp4Timeline } from './mp4-integrity.js?v=20260922-remux4';
-import { remuxSafariMp4 } from './mp4-remux.js?v=20260922-remux4';
+import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-stable1';
 import { createExportPainter } from './export-render.js?v=20260921-video2';
 import { shareVideoFile, saveMessage } from './export-save.js?v=20260921-save3';
 async function de(t) {
@@ -234,13 +232,18 @@ async function he() {
     painter = createExportPainter({canvas:u, draw:E, sceneSeconds:Y[a.design], presentationSeconds:PRESENTATION_SECONDS,
       onStill:()=>{t?.dispose();t=null;c.width=1;c.height=1;}});
     E(0);
-    // Use Safari's media clock at 30 fps. requestFrame() tied to rAF can
-    // under-count the movie when rendering drops below 30 callbacks/sec.
-    i = u.captureStream(30);
+    // WebKit can be sensitive to the automatic canvas capture cadence. Prefer
+    // manual delivery so every frame we actually paint is handed to the recorder.
+    i = u.captureStream(0);
+    let videoTrack = i.getVideoTracks()[0] || null;
+    let manualFrames = !!videoTrack && typeof videoTrack.requestFrame === 'function';
+    if (!manualFrames) {
+      i.getTracks().forEach(track=>track.stop());
+      i = u.captureStream(30);
+      videoTrack = i.getVideoTracks()[0] || null;
+    }
     if (soundtrack) i.addTrack(soundtrack.track);
-    const visualSeconds=Y[a.design]+PRESENTATION_SECONDS;
-    const targetSeconds=recordingLength(visualSeconds,audioSeconds);
-    const totalDuration=targetSeconds*1e3;
+    const totalDuration = recordingLength(Y[a.design], soundtrack?.duration || 0) * 1e3;
     const isIOS = /iP(?:hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     // H.264 level 3.1 accommodates 720x1280 at 30 fps; level 3.0 does not.
     const w = (soundtrack ? ["video/mp4;codecs=avc1.42E01F,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm;codecs=vp8,opus", "video/webm"] : ["video/mp4;codecs=avc1.42E01F", "video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp8", "video/webm"]).find((p) => MediaRecorder.isTypeSupported(p));
@@ -264,6 +267,7 @@ async function he() {
     if (isIOS && totalDuration <= 60000) n.start();
     else n.start(1000);
     await started;
+    if (manualFrames) videoTrack.requestFrame();
     soundtrack?.start();
     await new Promise((p, A) => {
       let lastPercent = -1;
@@ -279,7 +283,8 @@ async function he() {
           }
           try {
             const M = S - ne;
-            painter.paint(M / 1000);
+            const painted = painter.paint(M / 1000);
+            if (painted && manualFrames) videoTrack.requestFrame();
             const percent = Math.min(99, Math.floor(M / totalDuration * 100));
             if (percent !== lastPercent) {
               lastPercent = percent;
@@ -297,23 +302,21 @@ async function he() {
       }
       d = requestAnimationFrame(j);
     });
-    // Draw the exact final state once; captureStream(30) owns media timestamps.
-    painter.paint(targetSeconds);
-    await new Promise(resolve=>setTimeout(resolve,isIOS?35:20));
+    // Push one explicit final still and give WebKit a brief turn to hand it to
+    // the encoder before stop(), preventing the last frame from being stranded.
+    if (manualFrames) {
+      videoTrack.requestFrame();
+      await new Promise(resolve=>setTimeout(resolve,isIOS?180:60));
+    }
     complete = true;
     phase='finishing';
     const stopped = waitForMedia(n, 'stop', x.signal);
     n.stop();
     await stopped;
     await D;
-    const R = n.mimeType || w;
-    let N = new Blob(I, { type: R });
+    const R = n.mimeType || w, N = new Blob(I, { type: R });
     I.length = 0;
     if (!N.size) throw Error("Empty recording");
-    if (R.toLowerCase().includes("mp4")) {
-      N = await normalizeMp4Timeline(N, x.signal,{expectedDuration:targetSeconds});
-      N = await remuxSafariMp4(N, x.signal);
-    }
     // Release the encoder, audio graph and scene surfaces before a decoder is
     // created to validate the result. Mobile must not keep both pipelines live.
     i.getTracks().forEach(track=>track.stop()); i=null;
@@ -325,11 +328,8 @@ async function he() {
     phase='checking';
     m(q === 'en' ? 'Checking the video file…' : 'Проверяем видеофайл…');
     e('downloadVideo').textContent=q==='en'?'Checking video…':'Проверяем видео…';
-    const plannedSeconds=targetSeconds;
-    const minimumVideoSeconds=visualSeconds;
-    const verified = await verifyVideo(N, plannedSeconds, x.signal,{audioSeconds,minimumVideoSeconds});
-    e('exportPreview').dataset.expectedDuration = String(plannedSeconds);
-    e('exportPreview').dataset.minimumDuration = String(minimumVideoSeconds);
+    const verified = await verifyVideo(N, totalDuration / 1000, x.signal,{audioSeconds});
+    e('exportPreview').dataset.expectedDuration = String(totalDuration / 1000);
     e('exportPreview').dataset.actualDuration = String(verified.duration);
     y = new File([N], "thauma-" + a.design + "-opening." + (R.includes("mp4") ? "mp4" : "webm"), { type: R.split(";")[0] }), L = URL.createObjectURL(y), e("exportPreview").src = L, e("exportPreview").hidden = false, e("saveVideo").hidden = false, e("saveHelp").hidden = false, m(o("videoReady") + (R.includes("mp4") ? "" : " " + o("videoNoMp4")));
     e('downloadVideoFile').href=L;e('downloadVideoFile').download=y.name;e('downloadVideoFile').hidden=false;
@@ -337,11 +337,7 @@ async function he() {
       ? 'For Photos, choose Save / share → Save Video if offered. Download video saves the file to Downloads.'
       : 'Для «Фото»: «Сохранить / поделиться» → «Сохранить видео», если этот пункт доступен. «Скачать видео» сохраняет файл в «Загрузки».';
     const seconds=verified.duration.toFixed(1).replace('.',q==='en'?'.':',');
-    const fmt=n=>Number(n||0).toFixed(2).replace('.',q==='en'?'.':',');
-    const timing=q==='en'
-      ? `Audio: ${fmt(audioSeconds)} s · Target: ${fmt(plannedSeconds)} s · MP4: ${fmt(verified.duration)} s`
-      : `Аудио: ${fmt(audioSeconds)} с · Цель: ${fmt(plannedSeconds)} с · MP4: ${fmt(verified.duration)} с`;
-    m((q==='en'?`Video ready: ${seconds} s. Choose how to save it.`:`Видео готово: ${seconds} с. Выберите способ сохранения.`)+(R.includes('mp4')?'':' '+o('videoNoMp4'))+' · '+timing);
+    m((q==='en'?`Video ready: ${seconds} s. Choose how to save it.`:`Видео готово: ${seconds} с. Выберите способ сохранения.`)+(R.includes('mp4')?'':' '+o('videoNoMp4')));
     e('saveVideo').scrollIntoView({block:'center',behavior:'smooth'});
   } catch (error) {
     console.warn('Video export failed', error.name, error.code || error.message);
