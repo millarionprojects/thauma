@@ -3,8 +3,8 @@ import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-a
 import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
-import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-debug1';
-import { normalizeMp4Timeline } from './mp4-integrity.js?v=20260922-debug1';
+import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-clock2';
+import { normalizeMp4Timeline } from './mp4-integrity.js?v=20260922-clock2';
 import { createExportPainter } from './export-render.js?v=20260921-video2';
 import { shareVideoFile, saveMessage } from './export-save.js?v=20260921-save3';
 async function de(t) {
@@ -233,17 +233,9 @@ async function he() {
     painter = createExportPainter({canvas:u, draw:E, sceneSeconds:Y[a.design], presentationSeconds:PRESENTATION_SECONDS,
       onStill:()=>{t?.dispose();t=null;c.width=1;c.height=1;}});
     E(0);
-    // Drive the canvas track explicitly at the painter's 30 fps cadence. Safari
-    // otherwise may stop emitting unchanged final frames before a longer audio
-    // track ends. Any WebKit timestamp offset is normalized after recording.
-    i = u.captureStream(0);
-    let videoTrack=i.getVideoTracks()[0]||null;
-    let manualFrames=!!videoTrack&&typeof videoTrack.requestFrame==='function';
-    if(!manualFrames){
-      i.getTracks().forEach(track=>track.stop());
-      i=u.captureStream(30);
-      videoTrack=i.getVideoTracks()[0]||null;
-    }
+    // Use Safari's media clock at 30 fps. requestFrame() tied to rAF can
+    // under-count the movie when rendering drops below 30 callbacks/sec.
+    i = u.captureStream(30);
     if (soundtrack) i.addTrack(soundtrack.track);
     const visualSeconds=Y[a.design]+PRESENTATION_SECONDS;
     const targetSeconds=recordingLength(visualSeconds,audioSeconds);
@@ -271,7 +263,6 @@ async function he() {
     if (isIOS && totalDuration <= 60000) n.start();
     else n.start(1000);
     await started;
-    if(manualFrames)videoTrack.requestFrame();
     soundtrack?.start();
     await new Promise((p, A) => {
       let lastPercent = -1;
@@ -287,8 +278,7 @@ async function he() {
           }
           try {
             const M = S - ne;
-            const painted=painter.paint(M / 1000);
-            if(painted&&manualFrames)videoTrack.requestFrame();
+            painter.paint(M / 1000);
             const percent = Math.min(99, Math.floor(M / totalDuration * 100));
             if (percent !== lastPercent) {
               lastPercent = percent;
@@ -306,10 +296,8 @@ async function he() {
       }
       d = requestAnimationFrame(j);
     });
-    // Submit one final frame at the chosen movie end; stop() then flushes the
-    // encoder. No user-visible padding is added.
+    // Draw the exact final state once; captureStream(30) owns media timestamps.
     painter.paint(targetSeconds);
-    if(manualFrames)videoTrack.requestFrame();
     await new Promise(resolve=>setTimeout(resolve,isIOS?35:20));
     complete = true;
     phase='finishing';
