@@ -1,7 +1,19 @@
-import {inspectMp4} from './mp4-integrity.js?v=20260922-remux1';
+import {inspectMp4} from './mp4-integrity.js?v=20260922-remux2';
 // A non-empty recorder Blob is not evidence of a complete movie.
 export function checkDuration(actual, expected) {
   if (!Number.isFinite(actual) || actual < expected - 0.35 || actual > expected + 0.35) {
+    const error = new Error('Incomplete video');
+    error.code = 'INCOMPLETE_VIDEO';
+    error.actualDuration = actual;
+    error.expectedDuration = expected;
+    throw error;
+  }
+  return actual;
+}
+
+export function checkDurationRange(actual, minimum, maximum) {
+  if (!Number.isFinite(actual) || actual < minimum - 0.35 || actual > maximum + 0.35) {
+    const expected = actual < minimum - 0.35 ? minimum : maximum;
     const error = new Error('Incomplete video');
     error.code = 'INCOMPLETE_VIDEO';
     error.actualDuration = actual;
@@ -35,7 +47,7 @@ export async function verifyVideo(blob, expected, signal, {audioSeconds=0,minimu
     const result=await inspectMp4(blob,signal);
     const video=result.tracks.find(t=>t.kind==='vide');
     const audio=result.tracks.find(t=>t.kind==='soun');
-    checkDuration(video?.duration,minimumVideoSeconds);
+    checkDurationRange(video?.duration,minimumVideoSeconds,expected);
     if(audioSeconds)checkDuration(audio?.duration,audioSeconds);
     const movieDuration=Math.max(...result.tracks.map(t=>Number(t.duration)||0));
     checkDuration(movieDuration,expected);
@@ -59,7 +71,7 @@ export async function verifyVideo(blob, expected, signal, {audioSeconds=0,minimu
       video.currentTime = 1e9;
       await scanned;
     }
-    const duration = checkDuration(video.duration, minimumVideoSeconds);
+    const duration = checkDuration(video.duration, expected);
     const target = Math.max(0, minimumVideoSeconds - 0.25);
     const decoded = waitForMedia(video, 'seeked', signal);
     video.currentTime = target;
