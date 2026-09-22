@@ -166,10 +166,13 @@ function sanitizeFlatVideoTail(v,top,expectedSeconds=0){
     // clamp it to the exact planned end of the movie.
     const desired=Math.max(nominal,targetTicks-prefixTicks);
     const actualSeconds=summary.ticks/timescale;
-    const suspicious=last.duration>=0x80000000||
-      last.duration>Math.max(desired+timescale*.35,desired*1.5,nominal*8)||
-      (target&&actualSeconds>target+1);
-    if(suspicious&&desired>0&&desired<timescale*30&&last.duration!==desired){
+    const targetMismatch=target&&Math.abs(actualSeconds-target)>Math.max(.06,1.5*nominal/timescale);
+    const anomalous=last.duration>=0x80000000||
+      last.duration>Math.max(desired+timescale*.35,desired*1.5,nominal*8);
+    // Align the static final sample to the chosen movie end in both directions:
+    // shrink Safari's duplicated-duration tail, or extend the last frame when
+    // audio legitimately continues beyond the visual animation.
+    if((targetMismatch||anomalous)&&desired>0&&desired<timescale*30&&last.duration!==desired){
       v.setUint32(last.pos,desired);changed=true;
     }
   }
