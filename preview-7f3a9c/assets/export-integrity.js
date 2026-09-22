@@ -1,4 +1,4 @@
-import {inspectMp4} from './mp4-integrity.js?v=20260922-stable2';
+import {inspectMp4} from './mp4-integrity.js?v=20260922-rawstable1';
 // A non-empty recorder Blob is not evidence of a complete movie.
 export function checkDuration(actual, expected) {
   if (!Number.isFinite(actual) || actual < expected - 0.35) {
@@ -30,13 +30,24 @@ export function waitForMedia(media, event, signal, timeout = 15000) {
   });
 }
 
-export async function verifyVideo(blob, expected, signal, {audioSeconds=0,minimumVideoSeconds=expected}={}) {
+export async function verifyVideo(blob, expected, signal, {audioSeconds=0}={}) {
   if(blob.type.toLowerCase().startsWith('video/mp4')){
     const result=await inspectMp4(blob,signal);
-    checkDuration(result.duration,minimumVideoSeconds);
-    if(audioSeconds)checkDuration(result.tracks.find(t=>t.kind==='soun')?.duration,audioSeconds);
-    // iOS may not load/seek a detached video after the recording gesture has
-    // expired. Validate encoded samples instead of making Save depend on it.
+    const video=result.tracks.find(t=>t.kind==='vide');
+    const audio=result.tracks.find(t=>t.kind==='soun');
+    if(!video?.samples){
+      const error=new Error('Incomplete video');
+      error.code='INCOMPLETE_VIDEO';
+      throw error;
+    }
+    if(audioSeconds&&!audio?.samples){
+      const error=new Error('Incomplete audio');
+      error.code='INCOMPLETE_VIDEO';
+      throw error;
+    }
+    // This is deliberately the old stable behavior: do not reject an iPhone
+    // MP4 because Safari reports a strange duration. Preserve the file exactly
+    // as MediaRecorder produced it and allow Save when encoded tracks exist.
     return result;
   }
   const video = document.createElement('video');
@@ -55,8 +66,8 @@ export async function verifyVideo(blob, expected, signal, {audioSeconds=0,minimu
       video.currentTime = 1e9;
       await scanned;
     }
-    const duration = checkDuration(video.duration, minimumVideoSeconds);
-    const target = Math.max(0, minimumVideoSeconds - 0.25);
+    const duration = checkDuration(video.duration, expected);
+    const target = Math.max(0, expected - 0.25);
     const decoded = waitForMedia(video, 'seeked', signal);
     video.currentTime = target;
     await decoded;
