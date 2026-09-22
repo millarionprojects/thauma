@@ -165,15 +165,17 @@ function sanitizeFlatVideoTail(v,top,expectedSeconds=0){
     // duration again instead of only the remaining time. Keep the hold, but
     // clamp it to the exact planned end of the movie.
     const desired=Math.max(nominal,targetTicks-prefixTicks);
-    const actualSeconds=summary.ticks/timescale;
-    const targetMismatch=target&&Math.abs(actualSeconds-target)>Math.max(.06,1.5*nominal/timescale);
-    const anomalous=last.duration>=0x80000000||
-      last.duration>Math.max(desired+timescale*.35,desired*1.5,nominal*8);
-    // Align the static final sample to the chosen movie end in both directions:
-    // shrink Safari's duplicated-duration tail, or extend the last frame when
-    // audio legitimately continues beyond the visual animation.
-    if((targetMismatch||anomalous)&&desired>0&&desired<timescale*30&&last.duration!==desired){
+    // With a known movie end there is no reason to trust Safari's final sample
+    // duration. WebKit can write roughly the whole movie length into that one
+    // sample, producing: normal timeline + movie length again. Force the last
+    // sample to end exactly at target (within one nominal frame).
+    if(target&&prefixTicks<=targetTicks+nominal*2&&desired>0&&desired<timescale*30&&last.duration!==desired){
       v.setUint32(last.pos,desired);changed=true;
+    }else if(!target){
+      const anomalous=last.duration>=0x80000000||last.duration>Math.max(nominal*8,timescale*.5);
+      if(anomalous&&last.duration!==nominal){
+        v.setUint32(last.pos,nominal);changed=true;
+      }
     }
   }
   return changed;
@@ -339,9 +341,9 @@ export async function normalizeMp4Timeline(blob,signal,{expectedDuration=0}={}){
     const trackMovieDuration=Math.max(1,Math.round(track.duration*movieScale));
     if(fullDuration(v,mdhd)!==mediaDuration){setFullDuration(v,mdhd,mediaDuration);changed=true;}
     if(fullDuration(v,tkhd)!==trackMovieDuration){setFullDuration(v,tkhd,trackMovieDuration);changed=true;}
-    // Preserve MediaRecorder's original edit list. Only normalize actual
-    // movie/track/media duration headers; rewriting elst can make Safari's
-    // HTMLMediaElement.duration double-count the same interval.
+    // Keep edit-list duration consistent with the corrected track duration.
+    // Safari's broken export may put the doubled duration here too.
+    setEditList(v,trak,trackMovieDuration);
     movieDuration=Math.max(movieDuration,trackMovieDuration);
   }
   if(movieDuration){
