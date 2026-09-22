@@ -7,6 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {inspectMp4,normalizeMp4Timeline} from '../assets/mp4-integrity.js';
+import {remuxSafariMp4} from '../assets/mp4-remux.js';
 import {verifyVideo,checkDuration,checkDurationRange} from '../assets/export-integrity.js';
 import {shareVideoFile,saveMessage} from '../assets/export-save.js';
 
@@ -89,6 +90,18 @@ test('repairs a flattened MP4 whose final video sample is much longer than the a
   const fixed=await normalizeMp4Timeline(broken,undefined,{expectedDuration:3});
   const afterFix=await inspectMp4(fixed);
   assert.ok(Math.abs(afterFix.duration-3)<0.15);
+});
+
+test('codec-copy remux rebuilds a clean flat MP4 without edit lists',async()=>{
+  const source=fixtures.flat.blob;
+  const before=await inspectMp4(source);
+  const rebuilt=await remuxSafariMp4(source);
+  const after=await inspectMp4(rebuilt);
+  assert.ok(Math.abs(after.duration-before.duration)<.05);
+  assert.equal(after.tracks.find(t=>t.kind==='vide').samples,before.tracks.find(t=>t.kind==='vide').samples);
+  assert.equal(after.tracks.find(t=>t.kind==='soun').samples,before.tracks.find(t=>t.kind==='soun').samples);
+  const bytes=new Uint8Array(await rebuilt.arrayBuffer());
+  assert.equal(new TextDecoder('latin1').decode(bytes).includes('edts'),false);
 });
 
 test('rejects a complete short clip instead of calling it a full recording',async()=>{
