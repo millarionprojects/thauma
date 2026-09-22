@@ -17,9 +17,8 @@ import * as base from './export-audio.js?base=1';
 
 export const mountAudioExport=base.mountAudioExport;
 export const prepareSoundtrack=base.prepareSoundtrack;
-
-// The movie ends at the later of the complete visual sequence and the original
-// audio. No synthetic one/two-second tail is added.
-export function recordingLength(visualSeconds,audioSeconds=0){
-  return Math.max(visualSeconds,Number(audioSeconds)||0);
+export function recordingLength(animationSeconds,audioSeconds=0){
+  // Include the .85 s measured presentation and a readable final hold.
+  // The audio path and its lifetime remain unchanged.
+  return Math.max(animationSeconds+2.0,audioSeconds+1.0);
 }
