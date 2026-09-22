@@ -1,4 +1,4 @@
-import {inspectMp4} from './mp4-integrity.js?v=20260922-stable1';
+import {inspectMp4} from './mp4-integrity.js?v=20260922-stable2';
 // A non-empty recorder Blob is not evidence of a complete movie.
 export function checkDuration(actual, expected) {
   if (!Number.isFinite(actual) || actual < expected - 0.35) {
@@ -30,10 +30,10 @@ export function waitForMedia(media, event, signal, timeout = 15000) {
   });
 }
 
-export async function verifyVideo(blob, expected, signal, {audioSeconds=0}={}) {
+export async function verifyVideo(blob, expected, signal, {audioSeconds=0,minimumVideoSeconds=expected}={}) {
   if(blob.type.toLowerCase().startsWith('video/mp4')){
     const result=await inspectMp4(blob,signal);
-    checkDuration(result.duration,expected);
+    checkDuration(result.duration,minimumVideoSeconds);
     if(audioSeconds)checkDuration(result.tracks.find(t=>t.kind==='soun')?.duration,audioSeconds);
     // iOS may not load/seek a detached video after the recording gesture has
     // expired. Validate encoded samples instead of making Save depend on it.
@@ -55,8 +55,8 @@ export async function verifyVideo(blob, expected, signal, {audioSeconds=0}={}) {
       video.currentTime = 1e9;
       await scanned;
     }
-    const duration = checkDuration(video.duration, expected);
-    const target = Math.max(0, expected - 0.25);
+    const duration = checkDuration(video.duration, minimumVideoSeconds);
+    const target = Math.max(0, minimumVideoSeconds - 0.25);
     const decoded = waitForMedia(video, 'seeked', signal);
     video.currentTime = target;
     await decoded;
