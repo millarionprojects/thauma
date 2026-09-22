@@ -18,7 +18,8 @@ import * as base from './export-audio.js?base=1';
 export const mountAudioExport=base.mountAudioExport;
 export const prepareSoundtrack=base.prepareSoundtrack;
 export function recordingLength(animationSeconds,audioSeconds=0){
-  // Include the .85 s measured presentation and a readable final hold.
-  // The audio path and its lifetime remain unchanged.
-  return Math.max(animationSeconds+2.0,audioSeconds+1.0);
+  // Keep a readable hold after a short/no-audio gift, but when a longer voice
+  // message drives the export, end essentially with the audio instead of adding
+  // a visible extra second of frozen video.
+  return Math.max(animationSeconds+2.0,audioSeconds>0?audioSeconds+0.12:0);
 }
