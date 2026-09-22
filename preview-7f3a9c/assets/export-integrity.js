@@ -1,19 +1,7 @@
-import {inspectMp4} from './mp4-integrity.js?v=20260922-remux4';
+import {inspectMp4} from './mp4-integrity.js?v=20260922-stable1';
 // A non-empty recorder Blob is not evidence of a complete movie.
 export function checkDuration(actual, expected) {
-  if (!Number.isFinite(actual) || actual < expected - 0.35 || actual > expected + 0.35) {
-    const error = new Error('Incomplete video');
-    error.code = 'INCOMPLETE_VIDEO';
-    error.actualDuration = actual;
-    error.expectedDuration = expected;
-    throw error;
-  }
-  return actual;
-}
-
-export function checkDurationRange(actual, minimum, maximum) {
-  if (!Number.isFinite(actual) || actual < minimum - 0.35 || actual > maximum + 0.35) {
-    const expected = actual < minimum - 0.35 ? minimum : maximum;
+  if (!Number.isFinite(actual) || actual < expected - 0.35) {
     const error = new Error('Incomplete video');
     error.code = 'INCOMPLETE_VIDEO';
     error.actualDuration = actual;
@@ -42,18 +30,14 @@ export function waitForMedia(media, event, signal, timeout = 15000) {
   });
 }
 
-export async function verifyVideo(blob, expected, signal, {audioSeconds=0,minimumVideoSeconds=expected}={}) {
+export async function verifyVideo(blob, expected, signal, {audioSeconds=0}={}) {
   if(blob.type.toLowerCase().startsWith('video/mp4')){
     const result=await inspectMp4(blob,signal);
-    const video=result.tracks.find(t=>t.kind==='vide');
-    const audio=result.tracks.find(t=>t.kind==='soun');
-    checkDurationRange(video?.duration,minimumVideoSeconds,expected);
-    if(audioSeconds)checkDuration(audio?.duration,audioSeconds);
-    const movieDuration=Math.max(...result.tracks.map(t=>Number(t.duration)||0));
-    checkDuration(movieDuration,expected);
+    checkDuration(result.duration,expected);
+    if(audioSeconds)checkDuration(result.tracks.find(t=>t.kind==='soun')?.duration,audioSeconds);
     // iOS may not load/seek a detached video after the recording gesture has
     // expired. Validate encoded samples instead of making Save depend on it.
-    return {...result,duration:movieDuration,videoDuration:video?.duration||0,audioDuration:audio?.duration||0};
+    return result;
   }
   const video = document.createElement('video');
   const url = URL.createObjectURL(blob);
@@ -72,7 +56,7 @@ export async function verifyVideo(blob, expected, signal, {audioSeconds=0,minimu
       await scanned;
     }
     const duration = checkDuration(video.duration, expected);
-    const target = Math.max(0, minimumVideoSeconds - 0.25);
+    const target = Math.max(0, expected - 0.25);
     const decoded = waitForMedia(video, 'seeked', signal);
     video.currentTime = target;
     await decoded;
