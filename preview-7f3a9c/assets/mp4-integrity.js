@@ -154,8 +154,7 @@ function sanitizeFlatVideoTail(v,top,expectedSeconds=0){
   for(const trak of boxes(v,moov.data,moov.end).filter(b=>b.type==='trak')){
     const mdia=need(child(v,trak,'mdia')),mdhd=need(child(v,mdia,'mdhd')),hdlr=need(child(v,mdia,'hdlr'));
     if(tag(v,hdlr.data+8)!=='vide')continue;
-    const minf=need(child(v,mdia,'minf')),stbl=need(child(v,minf,'minf')||child(v,minf,'stbl'));
-    const table=stbl.type==='stbl'?stbl:need(child(v,minf,'stbl')),stts=need(child(v,table,'stts'));
+    const minf=need(child(v,mdia,'minf')),stbl=need(child(v,minf,'stbl')),stts=need(child(v,stbl,'stts'));
     const timescale=mediaTimescale(v,mdhd),summary=sttsSummary(v,stts),last=summary.last;
     if(!last||last.count!==1)continue;
     const nominal=summary.previous||Math.max(1,Math.round(timescale/30));
