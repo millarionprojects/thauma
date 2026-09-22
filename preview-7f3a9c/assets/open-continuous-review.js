@@ -216,9 +216,9 @@ async function he() {
     if (x.signal.aborted) throw Error("Aborted");
     let E = function(p, elapsed = 0) {
       t.render(p, p * Y[a.design]);
-      r.fillStyle = '#ffffff'; r.fillRect(0, 0, 720, 1280);
+      r.fillStyle = f ? '#0b191b' : '#e8f3ef'; r.fillRect(0, 0, 720, 1280);
       drawExportPresentation(r, t, {left:0, top:155, width:720, height:800}, (elapsed-Y[a.design])/PRESENTATION_SECONDS);
-      r.textAlign = "center", r.fillStyle = "#111111", r.font = "700 32px Arial", r.fillText("Thauma", 379, 82), re(r, 277, 50, 36, "#D4AF37"), r.fillStyle = "#1F2937", r.font = "20px Arial", r.font = "28px Arial", Z(r, l.title || "", 992, 34, 2), r.font = "34px Georgia", r.fillText(l.amount || "", 360, 1080, 620), r.font = "24px Arial", Z(r, l.message || "", 1130, 32, 4);
+      r.textAlign = "center", r.fillStyle = f ? "#eef9f4" : "#153e36", r.font = "700 32px Arial", r.fillText("Thauma", 379, 82), re(r, 277, 50, 36, f ? "#eef9f4" : "#153e36"), r.font = "20px Arial", r.font = "28px Arial", Z(r, l.title || "", 992, 34, 2), r.font = "34px Georgia", r.fillText(l.amount || "", 360, 1080, 620), r.font = "24px Arial", Z(r, l.message || "", 1130, 32, 4);
     };
     const l = se(a, e("personalVideo").checked), c = document.createElement("canvas");
     t = await createGiftScene(c, { design: a.design, theme: a.theme, gift: l }, ee);
