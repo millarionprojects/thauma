@@ -3,8 +3,8 @@ import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-a
 import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
-import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-audioclock1';
-import { normalizeMp4Timeline } from './mp4-integrity.js?v=20260922-audioclock1';
+import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-debug1';
+import { normalizeMp4Timeline } from './mp4-integrity.js?v=20260922-debug1';
 import { createExportPainter } from './export-render.js?v=20260921-video2';
 import { shareVideoFile, saveMessage } from './export-save.js?v=20260921-save3';
 async function de(t) {
@@ -272,7 +272,7 @@ async function he() {
     else n.start(1000);
     await started;
     if(manualFrames)videoTrack.requestFrame();
-    if(soundtrack)await soundtrack.start();
+    soundtrack?.start();
     await new Promise((p, A) => {
       let lastPercent = -1;
       const ne = performance.now(), ae = setTimeout(() => A(Error("Recording timeout")), totalDuration + 15e3), B = (S) => {
@@ -345,7 +345,11 @@ async function he() {
       ? 'For Photos, choose Save / share → Save Video if offered. Download video saves the file to Downloads.'
       : 'Для «Фото»: «Сохранить / поделиться» → «Сохранить видео», если этот пункт доступен. «Скачать видео» сохраняет файл в «Загрузки».';
     const seconds=verified.duration.toFixed(1).replace('.',q==='en'?'.':',');
-    m((q==='en'?`Video ready: ${seconds} s. Choose how to save it.`:`Видео готово: ${seconds} с. Выберите способ сохранения.`)+(R.includes('mp4')?'':' '+o('videoNoMp4')));
+    const fmt=n=>Number(n||0).toFixed(2).replace('.',q==='en'?'.':',');
+    const timing=q==='en'
+      ? `Audio: ${fmt(audioSeconds)} s · Target: ${fmt(plannedSeconds)} s · MP4: ${fmt(verified.duration)} s`
+      : `Аудио: ${fmt(audioSeconds)} с · Цель: ${fmt(plannedSeconds)} с · MP4: ${fmt(verified.duration)} с`;
+    m((q==='en'?`Video ready: ${seconds} s. Choose how to save it.`:`Видео готово: ${seconds} с. Выберите способ сохранения.`)+(R.includes('mp4')?'':' '+o('videoNoMp4'))+' · '+timing);
     e('saveVideo').scrollIntoView({block:'center',behavior:'smooth'});
   } catch (error) {
     console.warn('Video export failed', error.name, error.code || error.message);
