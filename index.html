@@ -8,20 +8,22 @@
   <meta name="theme-color" content="#f5fbfb" />
   <title>Thauma — красивая цифровая упаковка</title>
   <meta name="description" content="Thauma — персональные цифровые подарки и шесть премиальных сцен открытия." />
-  <script type="module" crossorigin src="./assets/main-continuous-review.js"></script>
+  <script type="importmap">{"imports":{"./assets/scene-engine-DthTCrw0.js":"./assets/scene-engine-preview.js?v=20260916-astra1","./assets/envelope-art-continuous.js":"./assets/envelope-art-preview.js?v=20260916-astra1","./assets/envelope-art-preview.js":"./assets/envelope-art-preview.js?v=20260916-astra1","./assets/envelope-scenes-continuous.js":"./assets/envelope-scenes-preview.js?v=20260916-astra1"}}</script>
+  <script type="module" crossorigin src="./assets/main-continuous-review.js?v=20260921-result1"></script>
   <script type="module" src="./assets/step-navigation.js"></script>
   <link rel="stylesheet" href="./assets/step-navigation.css">
   <link rel="modulepreload" crossorigin href="./assets/experience-CsT7v0Lg.js">
+  <link rel="modulepreload" crossorigin href="./assets/scene-engine-preview.js?v=20260916-astra1">
   <link rel="stylesheet" crossorigin href="./assets/experience-C9sx0h_T.css">
   <link rel="stylesheet" crossorigin href="./assets/main-S7NIwtRs.css">
-  <link rel="stylesheet" href="./assets/layout-continuous.css">
+  <link rel="stylesheet" href="./assets/layout-continuous.css?v=20260921-nav2">
   <link rel="stylesheet" href="./assets/audio-trim.css">
   <script type="module" src="./assets/mobile-offset.js"></script>
 </head>
 <body>
 <header class="header">
   <a class="brand" href="#top" aria-label="Thauma"><span class="brand-mark"><svg class="tau-mark" viewBox="0 0 88 96" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7 29C14 9 27 12 38 15C53 19 67 20 80 8C78 23 69 31 53 27L31 24C20 21 13 23 7 29ZM47 24L60 25C51 37 42 57 45 69C47 78 57 75 65 67C61 86 41 93 32 80C23 66 35 39 47 24Z"/></svg></span><span>Thauma</span></a>
-  <nav class="desktop-nav"><a href="#how">Как это работает</a><a href="#designs">Дизайны</a><a href="#create">Создать</a></nav>
+  <nav class="desktop-nav"><a href="#how">Как это работает</a><a href="#designs">Дизайны</a><a href="#createStart">Создать</a></nav>
   <button id="langToggle" class="icon-button" aria-label="Switch to English">EN</button><button id="themeToggle" class="icon-button" aria-label="Переключить тему"><span class="sun">☀</span><span class="moon">●</span></button>
 </header>
 <main id="top">
@@ -30,7 +32,7 @@
       <div class="eyebrow">Цифровая упаковка для подарков</div>
       <h1>Дарите не файл.<br><span>Дарите момент.</span></h1>
       <p>Выберите упаковку, загрузите сертификат и посмотрите открытие подарка. Сейчас создание работает как демо в этом браузере.</p>
-      <div class="hero-actions"><a class="button primary" href="#create">Создать подарок</a><a class="button secondary" href="open.html?demo=1&design=envelope-copper" target="_blank">Посмотреть демо</a></div>
+      <div class="hero-actions"><a class="button primary" href="#createStart">Создать подарок</a><a class="button secondary" href="open.html?demo=1&design=envelope-copper" target="_blank">Посмотреть демо</a></div>
       <div class="hero-note"><span></span> PDF, JPG, PNG и WEBP · светлая и тёмная темы</div>
     </div>
     <div class="hero-art" aria-hidden="true" style="background:transparent;border:0;box-shadow:none;">
@@ -64,7 +66,7 @@
   </section>
 
   <section id="create" class="section creator-section">
-    <header class="section-head"><span>Создание</span><h2>Соберите подарок прямо сейчас</h2><p>Рабочий прототип хранит подарок в браузере. Для показа откройте созданную ссылку на этом устройстве.</p></header>
+    <header id="createStart" class="section-head"><span>Создание</span><h2>Соберите подарок прямо сейчас</h2><p>Рабочий прототип хранит подарок в браузере. Для показа откройте созданную ссылку на этом устройстве.</p></header>
     <div class="creator-shell">
       <form id="giftForm" class="creator-form">
         <label id="dropZone" class="drop-zone" tabindex="0" role="button">

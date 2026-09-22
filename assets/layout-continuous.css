@@ -1,6 +1,6 @@
 :root{--thauma-header-height:76px;--thauma-scroll-gap:20px}
 html{scroll-padding-top:var(--thauma-header-height)}
-#how,#designs,#create,#dropZone,.form-fields label,.form-fields input,.form-fields textarea,.form-fields select{scroll-margin-top:var(--thauma-scroll-gap)}
+#how,#designs,#create,#createStart,#dropZone,.form-fields label,.form-fields input,.form-fields textarea,.form-fields select{scroll-margin-top:var(--thauma-scroll-gap)}
 .form-fields label,.two-cols,.form-fields{min-width:0}
 .form-fields input,.form-fields textarea,.form-fields select{max-width:100%;box-sizing:border-box}
 .result-orbit:after{width:8px;height:8px;opacity:.68;animation-duration:16s;animation-timing-function:linear;top:5px}

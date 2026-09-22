@@ -1,5 +1,41 @@
-// Applied only to a new microphone recording, before preview or gift storage.
-// Uploaded music is left unchanged. Use one fixed gain; never pump between words.
+// Preview audio quality guard. Keep microphone capture as unprocessed as browsers allow.
+// Uploaded audio is never touched.
+(function installMicQualityGuard(){
+  const media=navigator.mediaDevices;
+  if(media?.getUserMedia&&!media.__thaumaQualityPatched){
+    const native=media.getUserMedia.bind(media);
+    media.getUserMedia=constraints=>{
+      if(constraints?.audio){
+        const requested=typeof constraints.audio==='object'?constraints.audio:{};
+        constraints={...constraints,audio:{
+          ...requested,
+          echoCancellation:false,
+          noiseSuppression:false,
+          autoGainControl:false,
+          channelCount:1,
+          sampleRate:48000,
+          sampleSize:16
+        }};
+      }
+      return native(constraints);
+    };
+    media.__thaumaQualityPatched=true;
+  }
+  const Native=window.MediaRecorder;
+  if(Native&&!window.__thaumaRecorderQualityPatched){
+    class ThaumaMediaRecorder extends Native{
+      constructor(stream,options={}){
+        const next={...(options||{})};
+        if(stream?.getAudioTracks?.().length&&!next.audioBitsPerSecond)next.audioBitsPerSecond=192000;
+        super(stream,next);
+      }
+      static isTypeSupported(type){return Native.isTypeSupported(type);}
+    }
+    window.MediaRecorder=ThaumaMediaRecorder;
+    window.__thaumaRecorderQualityPatched=true;
+  }
+})();
+
 export function levelVoice(buffer) {
   const channels = Math.min(2, buffer.numberOfChannels);
   let peak = 0, sum = 0;
@@ -11,7 +47,11 @@ export function levelVoice(buffer) {
     }
   }
   const rms = Math.sqrt(sum / Math.max(1, buffer.length * channels));
-  const gain = rms < 0.00001 ? 1 : Math.min(12, 0.708 / Math.max(peak, 0.00001), Math.max(1, 0.08 / rms));
+  // Gentle single gain only: no compressor, no per-word AGC and no noise gate.
+  const targetRms = 0.055;
+  const peakCeiling = 0.89;
+  const desired = rms < 0.00001 ? 1 : targetRms / rms;
+  const gain = Math.min(2.5, peak > 0 ? peakCeiling / peak : 1, Math.max(1, desired));
   const size = buffer.length * channels * 2;
   if (!channels || size + 44 > 25 * 1048576) throw Error('Recording too large');
   const data = new ArrayBuffer(44 + size), view = new DataView(data);
@@ -27,10 +67,11 @@ export function levelVoice(buffer) {
   }
   return new Blob([data], {type: 'audio/wav'});
 }
+
 export async function prepareVoice(blob) {
-  // Offline decoding does not open a speaker route or monitor the microphone.
   const Context = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   if (!Context) throw Error('Audio processing unavailable');
-  const context = new Context(1, 1, 32000);
+  // Previous preview decoded at 32 kHz, which audibly dulled speech. Keep 48 kHz.
+  const context = new Context(1, 1, 48000);
   return levelVoice(await context.decodeAudioData(await blob.arrayBuffer()));
 }

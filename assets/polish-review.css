@@ -5,5 +5,31 @@ html{scroll-padding-top:var(--thauma-header-height)}
 .form-fields input,.form-fields textarea,.form-fields select{max-width:100%;box-sizing:border-box}
 .result-orbit:after{width:8px;height:8px;opacity:.68;animation-duration:16s;animation-timing-function:linear;top:5px}
 #sceneName[hidden]{display:none}
+
+/* Preview-only certificate viewer: never hard-crop uploaded content. */
+.certificate-preview{overflow:auto!important;overscroll-behavior:contain;scrollbar-width:thin;transition:opacity .22s ease,transform .55s cubic-bezier(.22,.61,.36,1)}
+.certificate-preview img,.certificate-preview canvas[data-pdf-first-page]{display:block!important;width:auto!important;height:auto!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important;margin:auto!important}
+.certificate-preview object{display:block;width:100%!important;height:100%!important;min-height:100%!important;border:0}
+.reveal-scene.visible .certificate-preview{animation:none}
+.preview-bridge-card{border-radius:18px;box-shadow:0 28px 74px rgba(0,0,0,.24);will-change:left,top,width,height,transform,opacity;overflow:hidden;background:transparent}
+.preview-bridge-card.demo-certificate{padding:18px!important}
+@keyframes thaumaCertificateSettle{from{transform:translateY(10px) scale(.985)}to{transform:translateY(0) scale(1)}}
+
+@media(max-width:600px){
+  .certificate-preview{height:clamp(300px,52svh,520px)!important;min-height:300px!important}
+  .certificate-preview img,.certificate-preview canvas[data-pdf-first-page]{max-height:calc(52svh - 2px)!important}
+  .preview-bridge-card{border-radius:14px}
+}
 @media(max-width:700px){:root{--thauma-scroll-gap:28px}.form-fields input,.form-fields textarea,.form-fields select{font-size:16px}}
-@media(prefers-reduced-motion:reduce){.result-orbit:after{animation:none}}
+@media(prefers-reduced-motion:reduce){.result-orbit:after{animation:none}.reveal-scene.visible .certificate-preview{animation:none}.certificate-preview{transition:none}.preview-bridge-card{box-shadow:none}}
+
+/* The measured flight owns motion; the result must not slide a second time. */
+:root{scrollbar-gutter:stable}
+/* Hidden result controls must not make the clipped stage an internal scroller. */
+.gift-stage{overflow:clip}
+.reveal-scene,.reveal-scene.visible{transform:none!important;transition:none}
+.reveal-scene.handoff-ready{position:absolute;inset:0;min-height:100svh;pointer-events:none}
+.certificate-preview{display:flex!important;align-items:center;justify-content:center;transition:none!important}
+.certificate-preview img,.certificate-preview canvas[data-pdf-first-page]{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;flex:none}
+.certificate-in-flight>*{visibility:hidden!important}
+.certificate-flight{position:fixed;left:0;top:0;width:1px;height:1px;margin:0;padding:0;border:0;border-radius:0;z-index:1000;pointer-events:none;transform-origin:0 0;will-change:transform,opacity}

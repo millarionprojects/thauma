@@ -1,0 +1,88 @@
+const stage=document.getElementById('giftStage');
+const scene=document.getElementById('sceneCanvas');
+const preview=document.getElementById('certificatePreview');
+const reveal=document.getElementById('revealScene');
+const opening=document.getElementById('openingScene');
+const reduce=matchMedia('(prefers-reduced-motion: reduce)');
+let last=stage?.dataset.state||'',bridge=null,timer=0,pdfBusy=false,envelopeTransition=false;
+
+const aspect=n=>n?.tagName==='IMG'?(n.naturalWidth||1)/(n.naturalHeight||1):n?.tagName==='CANVAS'?(n.width||1)/(n.height||1):1.55;
+function fit(box,a){let w=box.width,h=w/a;if(h>box.height){h=box.height;w=h*a}return{left:box.left+(box.width-w)/2,top:box.top+(box.height-h)/2,width:w,height:h}}
+function clone(n){if(!n)return null;if(n.tagName==='IMG'){const x=n.cloneNode();x.removeAttribute('id');return x}if(n.tagName==='CANVAS'){const x=document.createElement('canvas');x.width=n.width;x.height=n.height;x.getContext('2d')?.drawImage(n,0,0);return x}if(n.classList?.contains('demo-certificate'))return n.cloneNode(true);return null}
+function startRect(design,box,a){const r=design==='scroll'?.47:design==='balloon'?.38:.39,c=design==='scroll'?.45:.48,w=Math.min(box.width*r,230),h=w/a;return{left:box.left+(box.width-w)/2,top:box.top+box.height*c-h/2,width:w,height:h}}
+
+function resetEnvelopeTransition(){
+  envelopeTransition=false;
+  if(opening){opening.style.transition='';opening.style.transform='';}
+  if(reveal){reveal.style.transition='';reveal.style.transform='';reveal.style.willChange='';}
+  if(preview){preview.style.transition='';preview.style.opacity='1';preview.style.willChange='';}
+  if(scene){scene.style.opacity='1';scene.style.transition='';}
+}
+function clean(){clearTimeout(timer);timer=0;bridge?.remove();bridge=null;resetEnvelopeTransition()}
+
+// Envelopes already finish with the certificate at presentation size inside the
+// canvas. Moving a second DOM clone after that creates the very discontinuity we
+// are trying to remove. Keep the final canvas card on screen and crossfade the
+// result page into the same visual state instead.
+function envelopeHandoff(){
+  if(!stage||!scene||!preview||!reveal||!opening)return;
+  envelopeTransition=true;
+  bridge?.remove();bridge=null;
+  const instant=reduce.matches;
+
+  opening.style.transition=instant?'none':'opacity 500ms cubic-bezier(.22,.7,.28,1)';
+  opening.style.transform='none';
+  scene.style.transition=instant?'none':'opacity 520ms cubic-bezier(.22,.7,.28,1)';
+  scene.style.opacity='1';
+
+  // Remove the default upward slide on the result page. A spatial slide made the
+  // stationary certificate look as though it had jumped to a different layer.
+  reveal.style.transition=instant?'none':'opacity 360ms ease';
+  reveal.style.transform='none';
+  reveal.style.willChange='opacity';
+  preview.style.transition=instant?'none':'opacity 300ms ease';
+  preview.style.willChange='opacity';
+  preview.style.opacity='0';
+
+  clearTimeout(timer);
+  timer=setTimeout(()=>{
+    if(!envelopeTransition)return;
+    // The base controller reveals the result at 550 ms. Start the real certificate
+    // almost at that boundary, while the final canvas frame is still fading away.
+    preview.style.opacity='1';
+    scene.style.opacity='0';
+  },instant?0:500);
+
+  // Leave enough time for the result fade to settle, then return styles to normal
+  // so replay starts from a clean state.
+  setTimeout(()=>{if(envelopeTransition&&stage.dataset.state==='revealed')resetEnvelopeTransition()},instant?20:980);
+}
+
+function handoff(){
+  if(reduce.matches||!stage||!scene||!preview||bridge)return;
+  const design=stage.dataset.design||'';
+  if(design.startsWith('envelope')){envelopeHandoff();return;}
+  const src=preview.querySelector('img,canvas,.demo-certificate'),v=clone(src);if(!v)return;
+  const sb=scene.getBoundingClientRect(),tb=preview.getBoundingClientRect();if(!sb.width||!tb.width)return;
+  const a=aspect(src),s=startRect(design,sb,a),e=fit(tb,a);bridge=v;v.classList.add('preview-bridge-card');
+  Object.assign(v.style,{position:'fixed',left:s.left+'px',top:s.top+'px',width:s.width+'px',height:s.height+'px',margin:'0',zIndex:'1000',pointerEvents:'none',objectFit:'contain',transformOrigin:'center center',opacity:'1'});
+  preview.style.opacity='0';document.body.append(v);scene.style.transition='opacity 100ms linear';timer=setTimeout(()=>scene.style.opacity='0',30);
+  const an=v.animate([{left:s.left+'px',top:s.top+'px',width:s.width+'px',height:s.height+'px'},{left:e.left+'px',top:e.top+'px',width:e.width+'px',height:e.height+'px'}],{duration:480,easing:'cubic-bezier(.22,.7,.28,1)',fill:'forwards'});
+  an.onfinish=clean;an.oncancel=clean;
+}
+
+async function pdfPage(object){if(pdfBusy||!object?.data||object.dataset.previewHandled)return;pdfBusy=true;object.dataset.previewHandled='1';try{const bytes=new Uint8Array(await(await fetch(object.data)).arrayBuffer()),{getDocument,GlobalWorkerOptions}=await import('./pdf-DCt7qnim.js'),{default:worker}=await import('./pdf.worker.min-B8x2eVDF.js');GlobalWorkerOptions.workerSrc=worker;const task=getDocument({data:bytes,isEvalSupported:false}),pdf=await task.promise,page=await pdf.getPage(1),raw=page.getViewport({scale:1}),vp=page.getViewport({scale:Math.min(2,1800/Math.max(raw.width,raw.height))}),c=document.createElement('canvas');c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);c.dataset.pdfFirstPage='1';c.setAttribute('aria-label','Первая страница сертификата');await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;object.replaceWith(c);await pdf.destroy()}catch(e){object.dataset.previewHandled='';console.warn('PDF preview unavailable',e)}finally{pdfBusy=false}}
+function upgrade(){if(!preview)return;const o=preview.querySelector('object[type="application/pdf"]');if(o)pdfPage(o);const i=preview.querySelector('img');if(i){i.decoding='async';i.draggable=false}}
+
+if(preview){new MutationObserver(upgrade).observe(preview,{childList:true,subtree:true});upgrade()}
+if(stage)new MutationObserver(()=>{
+  const s=stage.dataset.state||'';
+  if(s==='transition'&&last!=='transition'){
+    upgrade();
+    const design=stage.dataset.design||'';
+    if(design.startsWith('envelope')) envelopeHandoff();
+    else requestAnimationFrame(()=>requestAnimationFrame(handoff));
+  }
+  if(s==='idle')clean();
+  last=s;
+}).observe(stage,{attributes:true,attributeFilter:['data-state']});
