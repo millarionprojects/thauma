@@ -3,9 +3,9 @@ import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-a
 import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
-import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-rawstable1';
+import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-rawstable2';
 import { createExportPainter } from './export-render.js?v=20260921-video2';
-import { shareVideoFile, saveMessage } from './export-save.js?v=20260921-save3';
+import { shareVideoFile, saveMessage } from './export-save.js?v=20260922-rawstable2';
 async function de(t) {
   if (!(t != null && t.blob)) return null;
   if (t.type === "application/pdf") {
