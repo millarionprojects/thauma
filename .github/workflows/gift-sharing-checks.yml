@@ -1,0 +1,45 @@
+name: Gift sharing checks
+
+on:
+  push:
+    branches: [main, feat/cloudflare-gift-sharing]
+  pull_request:
+    paths:
+      - 'assets/**'
+      - 'backend/**'
+      - 'index.html'
+      - 'open.html'
+      - '.github/workflows/gift-sharing-checks.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  sharing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          node --check backend/worker.mjs
+          node --experimental-default-type=module --check assets/gift-api.js
+          node --experimental-default-type=module --check assets/experience-CsT7v0Lg.js
+          node --experimental-default-type=module --check assets/main-continuous-review.js
+          node --experimental-default-type=module --check assets/copy-review.js
+      - name: Test creation and independent recipient
+        working-directory: backend
+        run: npm test
+      - name: Validate Worker bundle
+        working-directory: backend
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/thauma-worker
+      - name: Install browser verification tools
+        working-directory: backend
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify actual UI in independent browser contexts
+        working-directory: backend
+        run: node qa/browser-flow.mjs
