@@ -32,3 +32,14 @@ jobs:
       - name: Test creation and independent recipient
         working-directory: backend
         run: npm test
+      - name: Validate Worker bundle
+        working-directory: backend
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/thauma-worker
+      - name: Install browser verification tools
+        working-directory: backend
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify actual UI in independent browser contexts
+        working-directory: backend
+        run: node qa/browser-flow.mjs
