@@ -2,6 +2,12 @@ name: Deploy Thauma gift service
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/worker.mjs'
+      - 'backend/wrangler.jsonc'
+      - '.github/workflows/deploy-gift-service.yml'
 
 permissions:
   contents: read
@@ -16,7 +22,14 @@ jobs:
     environment: cloudflare
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check gift service before deployment
+        working-directory: backend
+        run: npm test
       - name: Deploy Worker
+        id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -24,3 +37,48 @@ jobs:
           workingDirectory: backend
           wranglerVersion: '4'
           command: deploy
+      - name: Verify published gift service
+        env:
+          THAUMA_API_BASE: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const base = process.env.THAUMA_API_BASE?.replace(/\/$/, '');
+          assert.ok(base && /^https:\/\/[^/]+\.workers\.dev$/.test(base), 'Missing Worker origin');
+          const origin = 'https://millarionprojects.github.io';
+          const headers = { Origin: origin };
+          const get = path => fetch(base + path, { headers, signal: AbortSignal.timeout(30000) });
+          const configResponse = await get('/api/config');
+          assert.equal(configResponse.status, 200, 'Worker configuration unavailable');
+          const config = await configResponse.json();
+          assert.equal(config.publicSharing, true);
+          assert.equal(config.audioSharing, true);
+          assert.equal(configResponse.headers.get('access-control-allow-origin'), origin);
+          const certificate = new Blob(['%PDF-1.4\nThauma connection check'], { type: 'application/pdf' });
+          const wav = Buffer.alloc(44 + 3200);
+          wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
+          wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+          wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28);
+          wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+          wav.write('data', 36); wav.writeUInt32LE(3200, 40);
+          const audio = new Blob([wav], { type: 'audio/wav' });
+          const form = new FormData();
+          form.set('metadata', JSON.stringify({ title: 'Thauma connection check', amount: '', message: 'Automatic service check', design: 'envelope-copper', lang: 'ru', theme: 'light' }));
+          form.set('file', certificate, 'check.pdf'); form.set('audio', audio, 'check.wav');
+          const response = await fetch(base + '/api/gifts', { method: 'POST', headers, body: form, signal: AbortSignal.timeout(120000) });
+          assert.equal(response.status, 201, 'Gift upload failed');
+          const saved = await response.json();
+          assert.match(saved.id, /^[a-f0-9]{64}$/);
+          const metadataResponse = await get('/api/gifts/' + saved.id);
+          assert.equal(metadataResponse.status, 200);
+          const metadata = await metadataResponse.json();
+          assert.equal(metadata.file.size, certificate.size); assert.equal(metadata.audio.size, audio.size);
+          for (const [key, original] of [['file', certificate], ['audio', audio]]) {
+            const result = await get('/api/gifts/' + saved.id + '/' + key);
+            assert.equal(result.status, 200);
+            assert.equal(result.headers.get('cache-control'), 'no-store');
+            assert.deepEqual(Buffer.from(await result.arrayBuffer()), Buffer.from(await original.arrayBuffer()));
+          }
+          console.log('PASS: published Worker stores and returns original certificate and audio');
+          console.log('THAUMA_DEPLOYMENT_ORIGIN=' + base);
+          JS
