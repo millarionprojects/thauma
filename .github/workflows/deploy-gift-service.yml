@@ -28,6 +28,58 @@ jobs:
       - name: Check gift service before deployment
         working-directory: backend
         run: npm test
+      - name: Prepare Workers address and gift retention
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFile } from 'node:fs/promises';
+          const account = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+          const token = process.env.CLOUDFLARE_API_TOKEN?.trim();
+          assert.match(account || '', /^[a-f0-9]{32}$/i, 'CLOUDFLARE_ACCOUNT_ID must be the 32-character account identifier');
+          assert.ok(token, 'Missing CLOUDFLARE_API_TOKEN');
+          const root = 'https://api.cloudflare.com/client/v4/accounts/' + account;
+          async function api(path, method = 'GET', body) {
+            const response = await fetch(root + path, {
+              method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+              ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(30000)
+            });
+            const json = await response.json();
+            return { ok: response.ok && json.success === true, status: response.status, result: json.result, codes: json.errors?.map(item => item.code).join(',') };
+          }
+          let current = await api('/workers/subdomain');
+          if (!current.ok && current.status !== 404) throw new Error('Cannot read Workers address; Cloudflare codes: ' + current.codes);
+          if (!current.result?.subdomain) {
+            const proposed = 'thauma-millarionprojects';
+            let created = await api('/workers/subdomain', 'PUT', { subdomain: proposed });
+            if (!created.ok && [400, 409].includes(created.status)) {
+              created = await api('/workers/subdomain', 'PUT', { subdomain: proposed + '-' + crypto.randomUUID().slice(0, 8) });
+            }
+            if (!created.ok) throw new Error('Cannot register Workers address; Cloudflare codes: ' + created.codes);
+            current = created;
+          }
+          console.log('Workers address ready: ' + current.result.subdomain + '.workers.dev');
+          const config = JSON.parse(await readFile('backend/wrangler.jsonc', 'utf8'));
+          const bucket = config.r2_buckets.find(item => item.binding === 'GIFTS').bucket_name;
+          const lifetime = Number(config.vars.GIFT_TTL_DAYS || 30);
+          assert.ok(Number.isInteger(lifetime) && lifetime >= 1 && lifetime <= 365, 'Invalid gift lifetime');
+          const path = '/r2/buckets/' + encodeURIComponent(bucket) + '/lifecycle';
+          const existing = await api(path);
+          if (!existing.ok) throw new Error('Cannot read gift retention settings; Cloudflare codes: ' + existing.codes);
+          const rules = existing.result?.rules || [];
+          const maxAge = (lifetime + 1) * 86400;
+          const retention = { id: 'thauma-expired-gifts', enabled: true, conditions: { prefix: 'gifts/' }, deleteObjectsTransition: { condition: { type: 'Age', maxAge } } };
+          const stored = rules.find(rule => rule.id === retention.id);
+          if (JSON.stringify(stored) !== JSON.stringify(retention)) {
+            const changed = await api(path, 'PUT', { rules: [...rules.filter(rule => rule.id !== retention.id), retention] });
+            if (!changed.ok) throw new Error('Cannot set gift retention; Cloudflare codes: ' + changed.codes);
+          }
+          const verified = await api(path);
+          assert.ok(verified.ok && verified.result.rules.some(rule => rule.id === retention.id && rule.enabled && rule.conditions.prefix === 'gifts/' && rule.deleteObjectsTransition?.condition.maxAge === maxAge), 'Gift retention was not saved');
+          console.log('PASS: expired gifts are removed after ' + (lifetime + 1) + ' days');
+          JS
       - name: Deploy Worker
         id: deploy
         uses: cloudflare/wrangler-action@v3
