@@ -108,7 +108,15 @@ jobs:
           const origin = 'https://millarionprojects.github.io';
           const headers = { Origin: origin };
           const get = path => fetch(base + path, { headers, signal: AbortSignal.timeout(30000) });
-          const configResponse = await get('/api/config');
+          let configResponse;
+          for (let attempt = 0; attempt < 24; attempt++) {
+            try {
+              configResponse = await get('/api/config');
+              if (configResponse.ok) break;
+            } catch {}
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+          assert.ok(configResponse, 'Worker origin is unavailable');
           assert.equal(configResponse.status, 200, 'Worker configuration unavailable');
           const config = await configResponse.json();
           assert.equal(config.publicSharing, true);
