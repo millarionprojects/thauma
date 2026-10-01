@@ -65,9 +65,17 @@ jobs:
           const bucket = config.r2_buckets.find(item => item.binding === 'GIFTS').bucket_name;
           const lifetime = Number(config.vars.GIFT_TTL_DAYS || 30);
           assert.ok(Number.isInteger(lifetime) && lifetime >= 1 && lifetime <= 365, 'Invalid gift lifetime');
+          const buckets = await api('/r2/buckets');
+          if (!buckets.ok) throw new Error('Cannot access R2 bucket list; Cloudflare codes: ' + buckets.codes);
+          if (!buckets.result?.buckets?.some(item => item.name === bucket)) {
+            const created = await api('/r2/buckets', 'POST', { name: bucket });
+            if (!created.ok) throw new Error('Cannot prepare gift bucket; Cloudflare codes: ' + created.codes);
+            console.log('Created expected gift bucket: ' + bucket);
+          }
+          console.log('Gift bucket ready: ' + bucket);
           const path = '/r2/buckets/' + encodeURIComponent(bucket) + '/lifecycle';
           const existing = await api(path);
-          if (!existing.ok) throw new Error('Cannot read gift retention settings; Cloudflare codes: ' + existing.codes);
+          if (!existing.ok && existing.status !== 404) throw new Error('Cannot read gift retention settings; Cloudflare codes: ' + existing.codes);
           const rules = existing.result?.rules || [];
           const maxAge = (lifetime + 1) * 86400;
           const retention = { id: 'thauma-expired-gifts', enabled: true, conditions: { prefix: 'gifts/' }, deleteObjectsTransition: { condition: { type: 'Age', maxAge } } };
