@@ -1,6 +1,6 @@
 import { createGiftScene } from "./envelope-scenes-continuous.js";
 import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-audio.js";
-import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js";
+import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js?v=20261001-cloud1";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
 import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-rawstable2';

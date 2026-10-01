@@ -43,3 +43,7 @@ jobs:
       - name: Verify actual UI in independent browser contexts
         working-directory: backend
         run: node qa/browser-flow.mjs
+      - name: Verify published site and real Cloudflare storage
+        if: github.ref == 'refs/heads/main'
+        working-directory: backend
+        run: node qa/live-flow.mjs
