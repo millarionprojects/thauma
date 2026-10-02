@@ -61,6 +61,10 @@ try {
         await page.waitForFunction(()=>document.querySelector('#giftStage').dataset.state==='revealed');
         const bytes = await page.evaluate(async()=>[...new Uint8Array(await (await fetch(document.querySelector('#downloadCertificate').href)).arrayBuffer())]);
         assert.deepEqual(Buffer.from(bytes),png);
+        assert.equal(await page.locator('#certificatePreview canvas[data-certificate-preview]').count(),1);
+        assert.equal(await page.locator('#certificatePreview img').count(),0);
+        const bounds = await page.locator('#certificatePreview canvas').boundingBox();
+        assert.ok(bounds.width <= 390);
         assert.match(await page.locator('#giftAudio').getAttribute('src'),/\/audio$/);
         // Audio controls may prefetch metadata; app initialization does not wait for it.
         assert.ok(audioRequests >= readyAudioRequests);

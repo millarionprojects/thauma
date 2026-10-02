@@ -95,13 +95,18 @@ async function ue() {
       loadingStatus('preview');
       const previewAbort = new AbortController();
       a.certificateImage = await withDeadline(de(a.file, previewAbort.signal), 10000, {onTimeout:() => previewAbort.abort()});
-      if (a.file?.type === 'application/pdf' && a.certificateImage) {
-        a.certificateImage.dataset.pdfFirstPage = '1';
+      if (a.certificateImage) {
+        if (a.file?.type === 'application/pdf') a.certificateImage.dataset.pdfFirstPage = '1';
+        a.certificateImage.dataset.certificatePreview = '1';
+        a.certificateImage.setAttribute('role', 'img');
         a.certificateImage.setAttribute('aria-label', a.title || o('defaultTitle'));
+        a.certificateImage.style.cssText = 'display:block;max-width:100%;max-height:100%;width:auto;height:auto;margin:auto';
         e('certificatePreview').replaceChildren(a.certificateImage);
       }
     } catch {
-      m(q === "en" ? "The preview could not be prepared. The original certificate is available to download." : "Предпросмотр подготовить не удалось. Исходный сертификат доступен для скачивания.");
+      const hint = q === "en" ? "The preview could not be prepared. The original certificate is available to download." : "Предпросмотр подготовить не удалось. Исходный сертификат доступен для скачивания.";
+      m(hint);
+      if (a.file?.type?.startsWith('image/')) e('certificatePreview').textContent = hint;
     }
     try {
       loadingStatus("scene");
@@ -161,8 +166,9 @@ function fe() {
       }
     }
   }, a.file.type.startsWith("image/")) {
-    const n = new Image();
-    n.src = V, n.alt = a.title || o("defaultTitle"), t.replaceChildren(n);
+    const n = document.createElement('p');
+    n.textContent = q === 'en' ? 'Preparing the certificate preview…' : 'Готовим предпросмотр сертификата…';
+    t.replaceChildren(n);
   } else {
     const n = document.createElement("object");
     n.data = V, n.type = "application/pdf", n.title = a.title || o("defaultTitle");
