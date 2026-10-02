@@ -1,5 +1,5 @@
-import {t as translate, c as refresh, l as language} from './experience-CsT7v0Lg.js?v=20261001-cloud1';
-export * from './experience-CsT7v0Lg.js?v=20261001-cloud1';
+import {t as translate, c as refresh, l as language} from './experience-CsT7v0Lg.js?v=20261002-sharing-music1';
+export * from './experience-CsT7v0Lg.js?v=20261002-sharing-music1';
 const messages={ru:'Пусть этот подарок станет началом чего-то прекрасного',en:'May this gift be the beginning of something wonderful'};
 const defaults=[...Object.values(messages),'Для тебя ✨ Пусть этот подарок станет началом чего-то прекрасного.','For you ✨ May this gift be the beginning of something wonderful.'];
 export function t(key){return key==='defaultMessage'?messages[language]:translate(key);}
