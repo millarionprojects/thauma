@@ -158,16 +158,23 @@ try {
   await legacyPage.evaluate(() => {
     window.captureRequests = [];
     window.recorderOptions = [];
+    window.captureEvents = [];
     const nativeCapture = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = constraints => {
       window.captureRequests.push(structuredClone(constraints));
-      return nativeCapture(constraints);
+      return nativeCapture(constraints).then(stream => {
+        window.captureEvents.push({settings:stream.getAudioTracks().map(track=>track.getSettings())});
+        return stream;
+      });
     };
     const Recorder = window.MediaRecorder;
     window.MediaRecorder = class extends Recorder {
       constructor(stream, options) {
         window.recorderOptions.push(structuredClone(options));
         super(stream, options);
+        this.addEventListener("dataavailable", event=>window.captureEvents.push({dataSize:event.data.size,type:event.data.type}));
+        this.addEventListener("error", event=>window.captureEvents.push({error:event.error?.message,name:event.error?.name}));
+        this.addEventListener("stop", ()=>window.captureEvents.push({stopped:true}));
       }
     };
   });
@@ -178,7 +185,17 @@ try {
     assert.equal(await legacyPage.locator('#recordingMode').isDisabled(), true);
     await legacyPage.waitForTimeout(1200);
     await legacyPage.locator('#recordAudio').click();
-    await legacyPage.waitForFunction(() => !document.querySelector('#recordingMode').disabled && !document.querySelector('#audioPreview').hidden);
+    try {
+      await legacyPage.waitForFunction(() => !document.querySelector('#recordingMode').disabled && !document.querySelector('#audioPreview').hidden, null, {timeout:10000});
+    } catch (error) {
+      console.log('Recording diagnostics:', await legacyPage.evaluate(() => ({
+        events:window.captureEvents, requests:window.captureRequests, options:window.recorderOptions,
+        status:document.querySelector('#audioStatus').textContent,
+        modeDisabled:document.querySelector('#recordingMode').disabled,
+        recordDisabled:document.querySelector('#recordAudio').disabled
+      })));
+      throw error;
+    }
     const recorded = await legacyPage.evaluate(async () => {
       const blob = await (await fetch(document.querySelector('#audioPreview').src)).blob();
       return {type:blob.type, size:blob.size, header:[...new Uint8Array(await blob.slice(0,4).arrayBuffer())]};
