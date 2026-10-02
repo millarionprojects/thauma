@@ -2,7 +2,7 @@ import './recording-guard.js';
 const en=()=>document.documentElement.lang==='en';
 export function mountAudioExport(gift,clearPrepared){
  const audio=document.getElementById('soundVideo'),personal=document.getElementById('personalVideo');
- const available=!!gift.audio?.blob;
+ const available=!!(gift.audio?.blob || gift.audio?.url);
  audio.disabled=!available;audio.checked=available;
  document.getElementById('soundVideoLabel').textContent=en()?'Include voice or music':'Добавить голос или музыку';
  function refresh(){

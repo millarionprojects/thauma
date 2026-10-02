@@ -1,4 +1,4 @@
-import { publicSharing, saveGift } from './gift-api.js?v=20261002-sharing-music1';
+import { publicSharing, saveGift } from './gift-api.js?v=20261002-loading1';
 
 export const isLocalGiftId = id => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id || '');
 
