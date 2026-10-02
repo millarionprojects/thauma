@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import worker from '../worker.mjs';
+import {withDeadline} from '../../assets/loading-deadline.js';
 
 const ORIGIN = 'https://millarionprojects.github.io';
 const ROOT = 'https://thauma.test';
@@ -48,10 +49,10 @@ function client(env, { root = ROOT, fetcher, localGet = async () => { throw new 
   const fetch = fetcher || ((url, init = {}) => worker.fetch(new Request(url, {
     ...init, headers: { ...init.headers, Origin: ORIGIN }
   }), env));
-  const source = clientSource.replace(/^import[^;]+;/m, '').replace(/export (?=(?:async )?(?:function|const))/g, '');
-  return new Function('API_BASE', 'fetch', 'window', 'document', 'URL', 'FormData', 'Blob', 'AbortSignal',
-    source + '\nreturn { checkSharing, saveGift, loadGift, publicSharing };'
-  )(root, fetch, { MagixDB: { get: localGet, put: localPut } }, { documentElement: { lang: 'ru' } }, URL, FormData, Blob, AbortSignal);
+  const source = clientSource.replace(/^import[^;]+;/gm, '').replace(/export (?=(?:async )?(?:function|const))/g, '');
+  return new Function('API_BASE', 'fetch', 'window', 'document', 'URL', 'FormData', 'Blob', 'AbortSignal', 'withDeadline',
+    source + '\nreturn { checkSharing, saveGift, loadGift, loadGiftAudio, publicSharing };'
+  )(root, fetch, { MagixDB: { get: localGet, put: localPut } }, { documentElement: { lang: 'ru' } }, URL, FormData, Blob, AbortSignal, withDeadline);
 }
 function gift() {
   return { id: crypto.randomUUID(), ...META, file: { name: 'сертификат.pdf', type: PDF.type, blob: PDF }, audio: { name: 'voice.wav', type: WAV.type, blob: WAV } };
@@ -218,4 +219,34 @@ test('missing MIME on audio is inferred from its filename', async () => {
   const loaded = await client(env).loadGift(saved.id);
   assert.equal(loaded.audio.type, 'audio/wav');
   assert.deepEqual(await loaded.audio.blob.arrayBuffer(), await WAV.arrayBuffer());
+});
+
+test('opening can defer unavailable audio and export loads the original bytes on demand', async () => {
+  const env = environment(), saved = await (await post(env)).json();
+  let audioRequests = 0;
+  const slowAudio = client(env, {fetcher: (url, init) => {
+    if (url.endsWith('/audio')) {audioRequests++; return new Promise(() => {});}
+    return worker.fetch(new Request(url, {...init, headers:{Origin:ORIGIN}}), env);
+  }});
+  const loaded = await slowAudio.loadGift(saved.id, {deferAudio:true});
+  assert.equal(audioRequests, 0);
+  assert.equal(loaded.audio.blob, undefined);
+  assert.equal(loaded.audio.url, ROOT + '/api/gifts/' + saved.id + '/audio');
+  assert.deepEqual(await loaded.file.blob.arrayBuffer(), await PDF.arrayBuffer());
+  const audio = await client(env).loadGiftAudio(loaded);
+  assert.deepEqual(await audio.arrayBuffer(), await WAV.arrayBuffer());
+});
+
+test('deadline rejects stalled preparation and disposes a late scene result', async () => {
+  let resolve, late, cancelled = false;
+  const work = new Promise(r => {resolve=r;});
+  await assert.rejects(withDeadline(work, 5, {
+    onTimeout:()=>{cancelled=true;},
+    onLate:value=>{late=value;}
+  }), error => error.code === 'LOADING_TIMEOUT');
+  assert.equal(cancelled,true);
+  const scene = {};
+  resolve(scene);
+  await Promise.resolve();
+  assert.equal(late,scene);
 });
