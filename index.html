@@ -9,15 +9,16 @@
   <title>Thauma — красивая цифровая упаковка</title>
   <meta name="description" content="Thauma — персональные цифровые подарки и шесть премиальных сцен открытия." />
   <script type="importmap">{"imports":{"./assets/scene-engine-DthTCrw0.js":"./assets/scene-engine-preview.js?v=20260916-astra1","./assets/envelope-art-continuous.js":"./assets/envelope-art-preview.js?v=20260916-astra1","./assets/envelope-art-preview.js":"./assets/envelope-art-preview.js?v=20260916-astra1","./assets/envelope-scenes-continuous.js":"./assets/envelope-scenes-preview.js?v=20260916-astra1"}}</script>
-  <script type="module" crossorigin src="./assets/main-continuous-review.js?v=20261001-cloud1"></script>
+  <script type="module" crossorigin src="./assets/main-continuous-review.js?v=20261002-sharing-music1"></script>
   <script type="module" src="./assets/step-navigation.js"></script>
   <link rel="stylesheet" href="./assets/step-navigation.css">
-  <link rel="modulepreload" crossorigin href="./assets/experience-CsT7v0Lg.js?v=20261001-cloud1">
+  <link rel="modulepreload" crossorigin href="./assets/experience-CsT7v0Lg.js?v=20261002-sharing-music1">
   <link rel="modulepreload" crossorigin href="./assets/scene-engine-preview.js?v=20260916-astra1">
   <link rel="stylesheet" crossorigin href="./assets/experience-C9sx0h_T.css">
   <link rel="stylesheet" crossorigin href="./assets/main-S7NIwtRs.css">
   <link rel="stylesheet" href="./assets/layout-continuous.css?v=20260921-nav2">
   <link rel="stylesheet" href="./assets/audio-trim.css">
+  <link rel="stylesheet" href="./assets/sharing-preview.css?v=20261002-sharing-music1">
   <script type="module" src="./assets/mobile-offset.js"></script>
 </head>
 <body>
@@ -62,7 +63,7 @@
       <button class="design-card" data-design="him"><div class="design-preview black-preview"><div class="tiny-box him-box"></div></div><div><b>Подарок для него</b><span>Матовая чёрная коробка</span></div></button>
       <button class="design-card" data-design="case"><div class="design-preview case-preview"><div class="tiny-case"></div></div><div><b>Футуристичный кейс</b><span>Технологичный кейс с подсветкой</span></div></button>
     </div>
-    <div class="design-demo-row"><button id="selectedDesignDemo" class="button secondary">Посмотреть выбранную анимацию</button></div>
+    <div class="design-demo-row"><button id="selectedDesignDemo" class="button secondary">Предпросмотр на этом устройстве</button></div>
   </section>
 
   <section id="create" class="section creator-section">
@@ -80,7 +81,7 @@
           <label><span>Название</span><input id="giftTitle" maxlength="60" value="Подарочный сертификат" required /></label>
           <div class="two-cols"><label><span>Сумма или подпись</span><input id="giftAmount" maxlength="30" value="5 000 ₽" /></label><label><span>Дизайн</span><select id="giftDesign"><option value="classic">Классический подарок</option><option value="envelope">Конверт с печатью</option><option value="jewelry">Шкатулка</option><option value="balloon">Шар-сюрприз</option><option value="him">Подарок для него</option><option value="case">Футуристичный кейс</option></select></label></div>
           <label><span>Сообщение</span><textarea id="giftMessage" maxlength="220" required>Пусть этот подарок станет началом чего-то прекрасного</textarea></label>
-          <fieldset class="audio-editor"><legend data-i18n="audioTitle">Голос или музыка</legend><p id="audioStatus" role="status"></p><div class="audio-buttons"><button id="recordAudio" class="button secondary" type="button">Записать голос</button><label class="button secondary"><span data-i18n="audioUpload">Выбрать аудиофайл</span><input id="audioFile" type="file" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm" hidden></label><button id="removeAudio" class="button secondary" type="button" data-i18n="removeAudio" hidden>Удалить аудио</button></div><audio id="audioPreview" controls preload="metadata" hidden></audio></fieldset>
+          <fieldset class="audio-editor"><legend data-i18n="audioTitle">Голос или музыка</legend><label class="recording-mode"><span data-i18n="recordingMode">Режим записи</span><select id="recordingMode"><option value="voice" data-i18n="voiceMode">Голос</option><option value="music" data-i18n="musicMode">Музыка из динамика</option></select></label><p id="recordingModeHint" class="recording-mode-hint"></p><p id="audioStatus" role="status"></p><div class="audio-buttons"><button id="recordAudio" class="button secondary" type="button">Записать голос</button><label class="button secondary"><span data-i18n="audioUpload">Выбрать аудиофайл</span><input id="audioFile" type="file" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm" hidden></label><button id="removeAudio" class="button secondary" type="button" data-i18n="removeAudio" hidden>Удалить аудио</button></div><audio id="audioPreview" controls preload="metadata" hidden></audio></fieldset>
           <p id="giftLimits" data-i18n="fileLimits">Сертификат и аудио: до 25 МБ каждый, до 30 МБ вместе при отправке.</p><button class="button primary full" type="submit"><span>Создать подарок</span><b>→</b></button>
         </div>
       </form>

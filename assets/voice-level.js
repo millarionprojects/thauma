@@ -1,41 +1,4 @@
-// Preview audio quality guard. Keep microphone capture as unprocessed as browsers allow.
-// Uploaded audio is never touched.
-(function installMicQualityGuard(){
-  const media=navigator.mediaDevices;
-  if(media?.getUserMedia&&!media.__thaumaQualityPatched){
-    const native=media.getUserMedia.bind(media);
-    media.getUserMedia=constraints=>{
-      if(constraints?.audio){
-        const requested=typeof constraints.audio==='object'?constraints.audio:{};
-        constraints={...constraints,audio:{
-          ...requested,
-          echoCancellation:false,
-          noiseSuppression:false,
-          autoGainControl:false,
-          channelCount:1,
-          sampleRate:48000,
-          sampleSize:16
-        }};
-      }
-      return native(constraints);
-    };
-    media.__thaumaQualityPatched=true;
-  }
-  const Native=window.MediaRecorder;
-  if(Native&&!window.__thaumaRecorderQualityPatched){
-    class ThaumaMediaRecorder extends Native{
-      constructor(stream,options={}){
-        const next={...(options||{})};
-        if(stream?.getAudioTracks?.().length&&!next.audioBitsPerSecond)next.audioBitsPerSecond=192000;
-        super(stream,next);
-      }
-      static isTypeSupported(type){return Native.isTypeSupported(type);}
-    }
-    window.MediaRecorder=ThaumaMediaRecorder;
-    window.__thaumaRecorderQualityPatched=true;
-  }
-})();
-
+// Voice-only volume adjustment. Music and uploaded audio keep their original bytes.
 export function levelVoice(buffer) {
   const channels = Math.min(2, buffer.numberOfChannels);
   let peak = 0, sum = 0;

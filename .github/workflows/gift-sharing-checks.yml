@@ -29,6 +29,10 @@ jobs:
           node --experimental-default-type=module --check assets/experience-CsT7v0Lg.js
           node --experimental-default-type=module --check assets/main-continuous-review.js
           node --experimental-default-type=module --check assets/copy-review.js
+          node --experimental-default-type=module --check assets/open-continuous-review.js
+          node --experimental-default-type=module --check assets/local-gift-sharing.js
+          node --experimental-default-type=module --check assets/microphone-recording.js
+          node --experimental-default-type=module --check assets/voice-level.js
       - name: Test creation and independent recipient
         working-directory: backend
         run: npm test

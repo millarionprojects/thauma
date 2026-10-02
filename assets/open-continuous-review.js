@@ -1,6 +1,7 @@
+import {mountLocalGiftSharing,isLocalGiftId} from './local-gift-sharing.js?v=20261002-sharing-music1';
 import { createGiftScene } from "./envelope-scenes-continuous.js";
 import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-audio.js";
-import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js?v=20261001-cloud1";
+import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js?v=20261002-sharing-music1";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
 import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-rawstable2';
@@ -62,7 +63,7 @@ async function ue() {
       Q();
       return;
     }
-    $.includes(a.design) || (a.design = "classic"), a.lang && W(a.lang, false), a.lang = q, a.theme = a.theme === "dark" ? "dark" : "light", document.documentElement.dataset.theme = a.theme, ce(), g.dataset.design = a.design, e("sceneName").hidden = true, e("giftMessage").textContent = a.message || o("defaultMessage"), document.title = q === "en" ? "Thauma \u2014 a gift for you" : "Thauma \u2014 \u043F\u043E\u0434\u0430\u0440\u043E\u043A \u0434\u043B\u044F \u0432\u0430\u0441", fe(), pe();
+    $.includes(a.design) || (a.design = "classic"), a.lang && W(a.lang, false), a.lang = q, a.theme = a.theme === "dark" ? "dark" : "light", document.documentElement.dataset.theme = a.theme, ce(), mountLocalGiftSharing(a, g), g.dataset.design = a.design, e("sceneName").hidden = true, e("giftMessage").textContent = a.message || o("defaultMessage"), document.title = q === "en" ? "Thauma \u2014 a gift for you" : "Thauma \u2014 \u043F\u043E\u0434\u0430\u0440\u043E\u043A \u0434\u043B\u044F \u0432\u0430\u0441", fe(), pe();
     try {
       a.certificateImage = await de(a.file);
       if (a.file?.type === 'application/pdf' && a.certificateImage) {
@@ -94,7 +95,7 @@ function Q(t = false) {
   const n = document.createElement("h1");
   n.textContent = o(t ? "loadErrorTitle" : "notFound");
   const d = document.createElement("p");
-  if (d.textContent = o(t ? "loadErrorHint" : "notFoundHint"), i.append(n, d), t) {
+  if (d.textContent = !t && isLocalGiftId(b.get('id')) ? (q === 'en' ? 'This gift is saved only in the sender’s browser. Ask the sender to open the original link on their device, then choose “Get a link to send”.' : 'Этот подарок сохранён только в браузере отправителя. Попросите отправителя открыть исходную ссылку на своём устройстве и нажать «Получить ссылку для отправки».') : o(t ? "loadErrorHint" : "notFoundHint"), i.append(n, d), t) {
     const c = document.createElement("button");
     c.className = "action primary", c.textContent = o("retry"), c.onclick = () => location.reload(), i.append(c);
   }
@@ -248,7 +249,7 @@ async function he() {
     // H.264 level 3.1 accommodates 720x1280 at 30 fps; level 3.0 does not.
     const w = (soundtrack ? ["video/mp4;codecs=avc1.42E01F,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm;codecs=vp8,opus", "video/webm"] : ["video/mp4;codecs=avc1.42E01F", "video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp8", "video/webm"]).find((p) => MediaRecorder.isTypeSupported(p));
     if (!w) throw Error("No recording format");
-    n = new MediaRecorder(i, { mimeType: w, videoBitsPerSecond: 5e6 });
+    n = new MediaRecorder(i, { mimeType: w, videoBitsPerSecond: 5e6, ...(soundtrack ? {audioBitsPerSecond:192000} : {}) });
     const I = [];
     n.ondataavailable = (p) => {
       p.data.size && I.push(p.data);

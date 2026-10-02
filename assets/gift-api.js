@@ -1,4 +1,4 @@
-import { API_BASE } from './sharing-config.js?v=20261001-cloud1';
+import { API_BASE } from './sharing-config.js?v=20261002-sharing-music1';
 
 const root = API_BASE.trim().replace(/\/$/, '');
 export const publicSharing = Boolean(root);

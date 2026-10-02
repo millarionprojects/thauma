@@ -60,7 +60,7 @@ audio.write('RIFF', 0); audio.writeUInt32LE(audio.length - 8, 4); audio.write('W
 audio.writeUInt32LE(16, 16); audio.writeUInt16LE(1, 20); audio.writeUInt16LE(1, 22);
 audio.writeUInt32LE(16000, 24); audio.writeUInt32LE(32000, 28); audio.writeUInt16LE(2, 32); audio.writeUInt16LE(16, 34);
 audio.write('data', 36); audio.writeUInt32LE(3200, 40);
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
 const pageErrors = [];
 async function createOn(page) {
   page.on('pageerror', error => pageErrors.push(error.message));
@@ -101,6 +101,106 @@ try {
   assert.deepEqual(Buffer.from(attachments.audio), audio);
   assert.equal(await recipientPage.locator('#giftAudioPanel').isVisible(), true);
   console.log('PASS: full UI creation and opening in an independent mobile browser context, certificate and audio unchanged');
+
+
+  // The old preview URL must use the current app, and its IndexedDB gift must
+  // remain accessible on this same origin before explicit publication.
+  const legacyId = await senderPage.evaluate(async ({certificate, audio}) => {
+    const id = crypto.randomUUID();
+    await window.MagixDB.put({
+      id, title: 'Старый подарок', amount: '', message: 'Сохранённое поздравление',
+      design: 'envelope-copper', theme: 'light', lang: 'ru', createdAt: Date.now(),
+      file: { name: 'legacy.png', type: 'image/png', blob: new Blob([new Uint8Array(certificate)], {type:'image/png'}) },
+      audio: { name: 'legacy.wav', type: 'audio/wav', blob: new Blob([new Uint8Array(audio)], {type:'audio/wav'}) }
+    });
+    return id;
+  }, {certificate: [...certificate], audio: [...audio]});
+  const legacyPage = await sender.newPage();
+  await legacyPage.goto(base + '/preview-7f3a9c/open.html?id=' + legacyId);
+  await legacyPage.getByRole('button', {name:'Получить ссылку для отправки', exact:true}).waitFor();
+  assert.equal(new URL(legacyPage.url()).pathname, '/open.html');
+  assert.equal(new URL(legacyPage.url()).searchParams.get('id'), legacyId);
+  assert.match(await legacyPage.locator('.local-gift-sharing').innerText(), /не откроется у получателя/);
+
+  const missingLegacy = await recipient.newPage();
+  await missingLegacy.goto(base + '/preview-7f3a9c/open.html?id=' + legacyId);
+  await missingLegacy.locator('.error-panel').waitFor();
+  assert.match(await missingLegacy.locator('.error-panel').innerText(), /браузере отправителя/);
+
+  await legacyPage.route('**/api/gifts', route => route.abort('internetdisconnected'));
+  await legacyPage.getByRole('button', {name:'Получить ссылку для отправки', exact:true}).click();
+  await legacyPage.waitForFunction(() => !document.querySelector('.local-gift-sharing button').disabled);
+  assert.equal(new URL(legacyPage.url()).searchParams.get('id'), legacyId);
+  assert.equal(await legacyPage.evaluate(async id => !!await window.MagixDB.get(id), legacyId), true);
+  await legacyPage.unroute('**/api/gifts');
+  await legacyPage.getByRole('button', {name:'Получить ссылку для отправки', exact:true}).click();
+  await legacyPage.locator('.local-gift-link').waitFor();
+  const migratedLink = await legacyPage.locator('.local-gift-link').inputValue();
+  assert.match(new URL(migratedLink).searchParams.get('id'), /^[a-f0-9]{64}$/);
+  assert.equal(legacyPage.url(), migratedLink);
+  const migratedRecipient = await recipient.newPage();
+  await migratedRecipient.goto(migratedLink);
+  await migratedRecipient.waitForFunction(() => document.querySelector('#openButton')?.disabled === false);
+  await migratedRecipient.locator('#openButton').click();
+  await migratedRecipient.waitForFunction(() => document.querySelector('#giftStage').dataset.state === 'revealed');
+  assert.equal(await migratedRecipient.locator('#giftMessage').innerText(), 'Сохранённое поздравление');
+  const migratedBytes = await migratedRecipient.evaluate(async () => ({
+    file: [...new Uint8Array(await (await fetch(document.querySelector('#downloadCertificate').href)).arrayBuffer())],
+    audio: [...new Uint8Array(await (await fetch(document.querySelector('#giftAudio').src)).arrayBuffer())]
+  }));
+  assert.deepEqual(Buffer.from(migratedBytes.file), certificate);
+  assert.deepEqual(Buffer.from(migratedBytes.audio), audio);
+  console.log('PASS: old preview redirects, local gift publication retries safely, independent recipient gets identical certificate and audio');
+
+  await legacyPage.goto(base + '/preview-7f3a9c/index.html#createStart');
+  await legacyPage.waitForURL(base + '/index.html#createStart');
+  await legacyPage.locator('#recordingMode').waitFor();
+  await legacyPage.evaluate(() => {
+    window.captureRequests = [];
+    window.recorderOptions = [];
+    const nativeCapture = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = constraints => {
+      window.captureRequests.push(structuredClone(constraints));
+      return nativeCapture(constraints);
+    };
+    const Recorder = window.MediaRecorder;
+    window.MediaRecorder = class extends Recorder {
+      constructor(stream, options) {
+        window.recorderOptions.push(structuredClone(options));
+        super(stream, options);
+      }
+    };
+  });
+  for (const mode of ['music', 'voice']) {
+    await legacyPage.locator('#recordingMode').selectOption(mode);
+    await legacyPage.locator('#recordAudio').click();
+    await legacyPage.waitForFunction(() => document.querySelector('#recordAudio').textContent === 'Остановить запись');
+    assert.equal(await legacyPage.locator('#recordingMode').isDisabled(), true);
+    await legacyPage.waitForTimeout(1200);
+    await legacyPage.locator('#recordAudio').click();
+    await legacyPage.waitForFunction(() => !document.querySelector('#recordingMode').disabled && !document.querySelector('#audioPreview').hidden);
+    const recorded = await legacyPage.evaluate(async () => {
+      const blob = await (await fetch(document.querySelector('#audioPreview').src)).blob();
+      return {type:blob.type, size:blob.size, header:[...new Uint8Array(await blob.slice(0,4).arrayBuffer())]};
+    });
+    assert.ok(recorded.size > 44);
+    if (mode === 'voice') {
+      assert.equal(recorded.type, 'audio/wav');
+      assert.deepEqual(recorded.header, [82,73,70,70]);
+    } else {
+      assert.notEqual(recorded.type, 'audio/wav');
+      assert.notDeepEqual(recorded.header, [82,73,70,70]);
+    }
+  }
+  const requests = await legacyPage.evaluate(() => ({capture:window.captureRequests, record:window.recorderOptions}));
+  assert.deepEqual(requests.capture.map(r=>r.audio.channelCount.ideal), [2,1]);
+  for (const {audio:options} of requests.capture) {
+    assert.equal(options.echoCancellation, false);
+    assert.equal(options.noiseSuppression, false);
+    assert.equal(options.autoGainControl, false);
+  }
+  assert.deepEqual(requests.record.map(r=>r.audioBitsPerSecond), [256000,192000]);
+  console.log('PASS: actual microphone recording in both modes; music skips voice processing, voice keeps WAV leveling');
 
   const count = objects.size;
   await senderPage.route('**/api/gifts', route => route.abort('internetdisconnected'));

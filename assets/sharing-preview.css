@@ -1,0 +1,15 @@
+.local-gift-sharing {
+  margin: 0 auto 20px; padding: 16px; width: min(100%, 640px);
+  box-sizing: border-box; border: 1px solid currentColor; border-radius: 16px;
+  text-align: center; color: inherit;
+}
+.local-gift-sharing p { margin: 0 0 12px; line-height: 1.5; }
+.local-gift-sharing [role="status"] { margin: 12px 0 0; }
+.local-gift-link {
+  display: block; width: 100%; box-sizing: border-box; margin-bottom: 12px;
+  padding: 12px; border: 1px solid currentColor; border-radius: 8px;
+  background: transparent; color: inherit; font: inherit; font-size: 14px;
+}
+.recording-mode { display: grid; gap: 6px; margin-bottom: 12px; }
+.recording-mode select { width: 100%; }
+.recording-mode-hint { font-size: 14px; line-height: 1.5; }
