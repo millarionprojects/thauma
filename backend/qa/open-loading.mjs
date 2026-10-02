@@ -24,6 +24,10 @@ try {
     const browser = await engine.launch(name === 'Chromium' ? {args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']} : {});
     try {
       const context = await browser.newContext({viewport:{width:390,height:844}, reducedMotion:'reduce'});
+      await context.route('**/api/config', route=>route.fulfill({
+        headers:{'Access-Control-Allow-Origin':base}, contentType:'application/json',
+        body:JSON.stringify({publicSharing:true,audioSharing:true})
+      }));
       const page = await context.newPage();
       const errors = [];
       page.on('pageerror',error=>errors.push(error.message));
