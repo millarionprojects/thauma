@@ -1,13 +1,15 @@
-import {mountLocalGiftSharing,isLocalGiftId} from './local-gift-sharing.js?v=20261002-sharing-music1';
+import {withDeadline} from './loading-deadline.js?v=20261002-loading1';
+import {loadGiftAudio} from './gift-api.js?v=20261002-loading1';
+import {mountLocalGiftSharing,isLocalGiftId} from './local-gift-sharing.js?v=20261002-loading1';
 import { createGiftScene } from "./envelope-scenes-continuous.js";
 import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-audio.js";
-import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js?v=20261002-sharing-music1";
+import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js?v=20261002-loading1";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
 import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-rawstable2';
 import { createExportPainter } from './export-render.js?v=20260921-video2';
 import { shareVideoFile, saveMessage } from './export-save.js?v=20260922-rawstable2';
-async function de(t) {
+async function de(t, signal) {
   if (!(t != null && t.blob)) return null;
   if (t.type === "application/pdf") {
     const { getDocument: n, GlobalWorkerOptions: d } = await z(async () => {
@@ -17,20 +19,35 @@ async function de(t) {
       const { default: u } = await import("./pdf.worker.min-B8x2eVDF.js");
       return { default: u };
     }, [], import.meta.url);
+    if (signal?.aborted) throw new Error("Preview cancelled");
     d.workerSrc = l;
     const c = n({ data: new Uint8Array(await t.blob.arrayBuffer()), isEvalSupported: false });
     c.onPassword = () => c.destroy();
+    const cancel = () => { c.destroy().catch(() => {}); };
+    signal?.addEventListener("abort", cancel, {once:true});
     try {
       const u = await c.promise, r = await u.getPage(1), f = r.getViewport({ scale: 1 }), E = r.getViewport({ scale: Math.min(2, 1600 / Math.max(f.width, f.height)) }), w = document.createElement("canvas");
       return w.width = Math.ceil(E.width), w.height = Math.ceil(E.height), await r.render({ canvasContext: w.getContext("2d"), viewport: E }).promise, w;
     } finally {
+      signal?.removeEventListener("abort", cancel);
       await c.destroy();
     }
   }
   const i = URL.createObjectURL(t.blob);
   try {
     const n = new Image();
-    n.src = i, await n.decode();
+    await new Promise((resolve, reject) => {
+      const cleanup = () => {
+        n.onload = null; n.onerror = null;
+        signal?.removeEventListener('abort', cancel);
+      };
+      const cancel = () => { cleanup(); n.src = ''; reject(new Error('Preview cancelled')); };
+      n.onload = () => { cleanup(); resolve(); };
+      n.onerror = () => { cleanup(); reject(new Error('Image preview unavailable')); };
+      if (signal?.aborted) { cancel(); return; }
+      signal?.addEventListener('abort', cancel, {once:true});
+      n.src = i;
+    });
     const d = document.createElement("canvas"), l = Math.min(1, 1600 / Math.max(n.naturalWidth, n.naturalHeight));
     return d.width = Math.max(1, Math.round(n.naturalWidth * l)), d.height = Math.max(1, Math.round(n.naturalHeight * l)), d.getContext("2d").drawImage(n, 0, 0, d.width, d.height), d;
   } finally {
@@ -43,6 +60,16 @@ function se(t, i = false) {
 const e = (t) => document.getElementById(t), b = new URLSearchParams(location.search), g = e("giftStage"), h = e("openingScene"), C = e("revealScene"), le = e("sceneCanvas"), F = matchMedia("(prefers-reduced-motion: reduce)");
 let a = null, s = null, k = "loading", V = null, J = null, L = null, y = null, T = false, x = null, K = null, _ = null;
 let certificateTransition = null;
+const loadingAbort = new AbortController();
+function loadingStatus(phase) {
+  const labels = {
+    metadata: ["Загружаем подарок…", "Loading your gift…"],
+    certificate: ["Загружаем сертификат…", "Loading the certificate…"],
+    preview: ["Готовим изображение…", "Preparing the image…"],
+    scene: ["Готовим анимацию…", "Preparing the animation…"]
+  };
+  e("sceneLoading").textContent = labels[phase][q === "en" ? 1 : 0];
+}
 function m(t) {
   e("revealStatus").textContent = t;
 }
@@ -59,23 +86,26 @@ function ce() {
 }
 async function ue() {
   try {
-    if (b.has("lang") && W(b.get("lang"), false), a = b.has("demo") ? { title: o("defaultTitle"), amount: "", message: o("defaultMessage"), design: $.includes(b.get("design")) ? b.get("design") : "envelope-gold", lang: q, theme: b.get("theme") || ie("magix-theme", "light"), file: null } : await oe(b.get("id")), !a) {
+    if (b.has("lang") && W(b.get("lang"), false), a = b.has("demo") ? { title: o("defaultTitle"), amount: "", message: o("defaultMessage"), design: $.includes(b.get("design")) ? b.get("design") : "envelope-gold", lang: q, theme: b.get("theme") || ie("magix-theme", "light"), file: null } : await oe(b.get("id"), {deferAudio:true, signal:loadingAbort.signal, onProgress:loadingStatus}), !a) {
       Q();
       return;
     }
     $.includes(a.design) || (a.design = "classic"), a.lang && W(a.lang, false), a.lang = q, a.theme = a.theme === "dark" ? "dark" : "light", document.documentElement.dataset.theme = a.theme, ce(), mountLocalGiftSharing(a, g), g.dataset.design = a.design, e("sceneName").hidden = true, e("giftMessage").textContent = a.message || o("defaultMessage"), document.title = q === "en" ? "Thauma \u2014 a gift for you" : "Thauma \u2014 \u043F\u043E\u0434\u0430\u0440\u043E\u043A \u0434\u043B\u044F \u0432\u0430\u0441", fe(), pe();
     try {
-      a.certificateImage = await de(a.file);
+      loadingStatus('preview');
+      const previewAbort = new AbortController();
+      a.certificateImage = await withDeadline(de(a.file, previewAbort.signal), 10000, {onTimeout:() => previewAbort.abort()});
       if (a.file?.type === 'application/pdf' && a.certificateImage) {
         a.certificateImage.dataset.pdfFirstPage = '1';
         a.certificateImage.setAttribute('aria-label', a.title || o('defaultTitle'));
         e('certificatePreview').replaceChildren(a.certificateImage);
       }
     } catch {
-      m(o("pdfHint"));
+      m(q === "en" ? "The preview could not be prepared. The original certificate is available to download." : "Предпросмотр подготовить не удалось. Исходный сертификат доступен для скачивания.");
     }
     try {
-      s = await createGiftScene(le, { design: a.design, theme: a.theme, gift: a }, ee), s.onError = X;
+      loadingStatus("scene");
+      s = await withDeadline(createGiftScene(le, { design: a.design, theme: a.theme, gift: a }, ee), 10000, {onLate:scene => scene?.dispose()}), s.onError = X;
       const t = () => {
         const i = e("giftButton").getBoundingClientRect();
         s.resize(Math.max(240, i.width), Math.max(180, i.height)), s.render();
@@ -142,7 +172,7 @@ function fe() {
 }
 function pe() {
   var t;
-  (t = a.audio) != null && t.blob && (J = URL.createObjectURL(a.audio.blob), e("giftAudio").src = J, e("giftAudioPanel").hidden = false);
+  (t = a.audio) != null && (t.blob || t.url) && (J = t.blob ? URL.createObjectURL(t.blob) : null, e("giftAudio").src = J || t.url, e("giftAudioPanel").hidden = false);
   mountAudioExport(a, O);
 }
 function me() {
@@ -211,6 +241,7 @@ async function he() {
   x = new AbortController();
   e("soundVideo").disabled = true;
   try {
+    if (e("soundVideo").checked && a.audio && !a.audio.blob) await loadGiftAudio(a, x.signal);
     soundtrack = await prepareSoundtrack(a.audio?.blob, e("soundVideo").checked, x.signal);
     const audioSeconds=soundtrack?.duration||0;
     phase='scene';
@@ -353,7 +384,7 @@ async function he() {
   } finally {
     e('videoCanvas').hidden = true;
     await soundtrack?.close();
-    e("soundVideo").disabled = !a.audio?.blob;
+    e("soundVideo").disabled = !(a.audio?.blob || a.audio?.url);
     cancelAnimationFrame(d), n && n.state !== "inactive" && n.stop(), i == null || i.getTracks().forEach((l) => l.stop()), t == null || t.dispose(), x = null, T = false, g.classList.remove("recording"), e("downloadVideo").disabled = false, e("downloadVideo").textContent = o("video"), e("personalVideo").disabled = false;
     painter?.dispose();
     e('videoCanvas').width=1;e('videoCanvas').height=1;

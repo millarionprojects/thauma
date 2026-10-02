@@ -33,6 +33,9 @@ jobs:
           node --experimental-default-type=module --check assets/local-gift-sharing.js
           node --experimental-default-type=module --check assets/microphone-recording.js
           node --experimental-default-type=module --check assets/voice-level.js
+          node --experimental-default-type=module --check assets/open-bootstrap.js
+          node --experimental-default-type=module --check assets/loading-deadline.js
+          node --experimental-default-type=module --check assets/export-audio.js
       - name: Test creation and independent recipient
         working-directory: backend
         run: npm test
@@ -43,10 +46,13 @@ jobs:
         working-directory: backend
         run: |
           npm install --no-save --package-lock=false playwright@1.55.0
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
       - name: Verify actual UI in independent browser contexts
         working-directory: backend
         run: node qa/browser-flow.mjs
+      - name: Verify mobile WebKit loading and recovery
+        working-directory: backend
+        run: node qa/open-loading.mjs
       - name: Verify published site and real Cloudflare storage
         if: github.ref == 'refs/heads/main'
         working-directory: backend

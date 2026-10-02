@@ -1,4 +1,5 @@
-import { API_BASE } from './sharing-config.js?v=20261002-sharing-music1';
+import {withDeadline} from './loading-deadline.js?v=20261002-loading1';
+import { API_BASE } from './sharing-config.js?v=20261002-loading1';
 
 const root = API_BASE.trim().replace(/\/$/, '');
 export const publicSharing = Boolean(root);
@@ -16,6 +17,41 @@ function endpoint(path) {
     throw new Error('Invalid gift service configuration');
   }
   return root + path;
+}
+
+
+async function request(path, options, consume, milliseconds, parentSignal) {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (parentSignal?.aborted) abort();
+  else parentSignal?.addEventListener('abort', abort, {once:true});
+  
+  try {
+    return await withDeadline((async () => {
+      const response = await fetch(endpoint(path), {...options, signal:controller.signal});
+      return consume(response);
+    })(), milliseconds, {onTimeout:abort});
+  } finally {
+    parentSignal?.removeEventListener('abort', abort);
+  }
+}
+
+async function attachment(id, key, metadata, signal) {
+  return request('/api/gifts/' + id + '/' + key, {
+    credentials:'omit', cache:'no-store'
+  }, async response => {
+    if (!response.ok) throw new Error('Gift attachment unavailable');
+    const blob = await response.blob();
+    if (blob.size !== metadata.size) throw new Error('Incomplete gift attachment');
+    return blob;
+  }, 45000, signal);
+}
+
+export async function loadGiftAudio(gift, signal) {
+  if (!gift.audio || gift.audio.blob) return gift.audio?.blob || null;
+  if (!remoteId.test(gift.id)) throw new Error('Invalid gift ID');
+  gift.audio.blob = await attachment(gift.id, 'audio', gift.audio, signal);
+  return gift.audio.blob;
 }
 
 function fail(code) {
@@ -36,10 +72,9 @@ function fail(code) {
 export async function checkSharing() {
   if (!publicSharing) return false;
   try {
-    const response = await fetch(endpoint('/api/config'), {
-      credentials: 'omit', cache: 'no-store', signal: AbortSignal.timeout(7000)
-    });
-    const config = response.ok ? await response.json() : null;
+    const config = await request('/api/config', {
+      credentials:'omit', cache:'no-store'
+    }, response => response.ok ? response.json() : null, 7000);
     available = config?.publicSharing === true && config.audioSharing === true;
   } catch {
     available = false;
@@ -72,14 +107,15 @@ export async function saveGift(gift) {
     }
   }
   try {
-    const response = await fetch(endpoint('/api/gifts'), {
-      method: 'POST', body, credentials: 'omit', signal: AbortSignal.timeout(120000)
-    });
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      throw fail(payload.error);
-    }
-    const saved = await response.json();
+    const saved = await request('/api/gifts', {
+      method:'POST', body, credentials:'omit'
+    }, async response => {
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw fail(payload.error);
+      }
+      return response.json();
+    }, 120000);
     if (!remoteId.test(saved.id) || !Number.isFinite(saved.expiresAt)) throw fail('unavailable');
     return { id: saved.id, local: false, expiresAt: saved.expiresAt };
   } catch (error) {
@@ -89,28 +125,27 @@ export async function saveGift(gift) {
   }
 }
 
-export async function loadGift(id) {
+export async function loadGift(id, {deferAudio = false, signal, onProgress} = {}) {
   if (!id) return null;
   if (localId.test(id)) return window.MagixDB.get(id);
   if (!remoteId.test(id)) return null;
   if (!publicSharing) throw new Error('Gift sharing is not configured');
-  const response = await fetch(endpoint('/api/gifts/' + id), {
-    credentials: 'omit', cache: 'no-store', signal: AbortSignal.timeout(30000)
-  });
-  if (response.status === 404 || response.status === 410) return null;
-  if (!response.ok) throw new Error('Gift unavailable');
-  const gift = await response.json();
+  onProgress?.('metadata');
+  const gift = await request('/api/gifts/' + id, {
+    credentials:'omit', cache:'no-store'
+  }, async response => {
+    if (response.status === 404 || response.status === 410) return null;
+    if (!response.ok) throw new Error('Gift unavailable');
+    return response.json();
+  }, 15000, signal);
+  if (!gift) return null;
   if (gift.id !== id) throw new Error('Invalid gift response');
-  // URLs are constructed here; stored metadata cannot redirect downloads elsewhere.
+  // These URLs are constructed locally; metadata cannot redirect downloads.
+  if (gift.audio) gift.audio.url = endpoint('/api/gifts/' + id + '/audio');
+  onProgress?.('certificate');
   await Promise.all(['file', 'audio'].map(async key => {
-    if (!gift[key]) return;
-    const response = await fetch(endpoint('/api/gifts/' + id + '/' + key), {
-      credentials: 'omit', cache: 'no-store', signal: AbortSignal.timeout(120000)
-    });
-    if (!response.ok) throw new Error('Gift attachment unavailable');
-    const blob = await response.blob();
-    if (blob.size !== gift[key].size) throw new Error('Incomplete gift attachment');
-    gift[key].blob = blob;
+    if (!gift[key] || (key === 'audio' && deferAudio)) return;
+    gift[key].blob = await attachment(id, key, gift[key], signal);
   }));
   return gift;
 }

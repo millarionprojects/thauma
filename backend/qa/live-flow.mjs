@@ -16,7 +16,7 @@ for (let attempt = 0; attempt < 24; attempt++) {
   try {
     const response = await fetch(site + 'assets/sharing-config.js?revision=' + revision, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
     const html = await fetch(site + '?revision=' + revision, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
-    if (response.ok && (await response.text()).includes(root) && html.ok && (await html.text()).includes('20261002-sharing-music1')) { ready = true; break; }
+    if (response.ok && (await response.text()).includes(root) && html.ok && (await html.text()).includes('20261002-loading1')) { ready = true; break; }
   } catch {}
   await new Promise(resolve => setTimeout(resolve, 5000));
 }
