@@ -33,7 +33,9 @@ try {
   const senderContext = await browser.newContext();
   const sender = await senderContext.newPage();
   sender.on('pageerror', error => errors.push(error.message));
-  await sender.goto(site + '?revision=' + revision);
+  await sender.goto(site + 'preview-7f3a9c/?revision=' + revision);
+  await sender.waitForURL(url => !url.pathname.includes('/preview-7f3a9c/'));
+  await sender.locator('#recordingMode').waitFor();
   await sender.locator('#giftFile').setInputFiles({ name: 'check.png', mimeType: 'image/png', buffer: png });
   await sender.locator('#audioFile').setInputFiles({ name: 'check.wav', mimeType: 'audio/wav', buffer: wav });
   await sender.locator('#giftTitle').fill('Проверка отправки Таумы');

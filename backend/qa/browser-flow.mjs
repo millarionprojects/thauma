@@ -186,7 +186,7 @@ try {
     await legacyPage.waitForTimeout(1200);
     await legacyPage.locator('#recordAudio').click();
     try {
-      await legacyPage.waitForFunction(() => !document.querySelector('#recordingMode').disabled && !document.querySelector('#audioPreview').hidden, null, {timeout:10000});
+      await legacyPage.waitForFunction(() => !document.querySelector('#recordingMode').disabled && !!document.querySelector('#audioPreview').getAttribute('src') && !document.querySelector('#removeAudio').hidden, null, {timeout:10000});
     } catch (error) {
       console.log('Recording diagnostics:', await legacyPage.evaluate(() => ({
         events:window.captureEvents, requests:window.captureRequests, options:window.recorderOptions,
