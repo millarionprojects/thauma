@@ -1,5 +1,5 @@
 .local-gift-sharing {
-  margin: 0 auto 20px; padding: 16px; width: min(100%, 640px);
+  margin: 16px auto; padding: 16px; width: min(100%, 640px);
   box-sizing: border-box; border: 1px solid currentColor; border-radius: 16px;
   text-align: center; color: inherit;
 }

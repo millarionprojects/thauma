@@ -15,7 +15,8 @@ export function mountLocalGiftSharing(gift, stage) {
     'This is a preview in your browser. This link will not open for your recipient.'
   );
   panel.append(note);
-  stage.querySelector('header').after(panel);
+  // Keep the preview notice outside the measured animation/reveal stage.
+  stage.before(panel);
 
   if (!publicSharing || !gift.file?.blob?.size) {
     const back = document.createElement('a');
