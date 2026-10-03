@@ -93,6 +93,19 @@ try{
         })});
       });
       const errors=[];page.on('pageerror',error=>errors.push(error.message));
+      await page.addInitScript(()=>{
+        const Base=window.MediaRecorder;if(!Base)return;
+        window.__exportRecordings=[];
+        window.MediaRecorder=class extends Base{
+          constructor(stream,options){
+            super(stream,options);
+            const entry={mime:options?.mimeType,events:[],chunks:[]};
+            window.__exportRecordings.push(entry);
+            for(const event of ['start','stop','pause','resume','error'])this.addEventListener(event,()=>entry.events.push({event,time:performance.now()}));
+            this.addEventListener('dataavailable',event=>{if(event.data.size)entry.chunks.push(event.data);});
+          }
+        };
+      });
       await page.goto(base+'/open.html?id='+id,{waitUntil:'domcontentloaded'});
       await page.waitForFunction(()=>document.querySelector('#openButton')?.disabled===false,null,{timeout:30000});
       await page.locator('#openButton').click();
@@ -109,6 +122,15 @@ try{
             return !preview.hidden||!!status.dataset.exportError;
           },null,{timeout:90000});
           const status=await page.locator('#revealStatus').innerText();
+          if(!await page.locator('#exportPreview').isVisible()){
+            const diagnostic=await page.evaluate(async()=>{
+              const entry=window.__exportRecordings.at(-1),blob=new Blob(entry.chunks,{type:entry.mime});
+              const {inspectMp4}=await import('./assets/mp4-integrity.js?v=20261003-duration1');
+              const inspected=blob.type.startsWith('video/mp4')?await inspectMp4(blob):null;
+              return {mime:entry.mime,size:blob.size,events:entry.events,inspected};
+            });
+            console.log('Export diagnostics: '+JSON.stringify(diagnostic));
+          }
           assert.equal(await page.locator('#exportPreview').isVisible(),true,status);
           const result=await page.evaluate(async()=>{
             const bounded=promise=>new Promise((resolve,reject)=>{
