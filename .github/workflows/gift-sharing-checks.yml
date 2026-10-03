@@ -39,6 +39,7 @@ jobs:
           node --experimental-default-type=module --check assets/mp4-integrity.js
           node --experimental-default-type=module --check assets/export-integrity.js
           node --check backend/qa/video-export.test.mjs
+          node --check backend/qa/video-saving.mjs
           node --check backend/qa/video-duration.mjs
           node --check backend/qa/live-flow.mjs
       - name: Test creation and independent recipient
@@ -62,6 +63,9 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.55.0
           npx playwright install --with-deps chromium webkit
           npx playwright install chrome
+      - name: Verify saving when video checking fails
+        working-directory: backend
+        run: node qa/video-saving.mjs
       - name: Verify native MP4 duration and actual video exports
         working-directory: backend
         run: node qa/video-duration.mjs
@@ -72,6 +76,6 @@ jobs:
         working-directory: backend
         run: node qa/open-loading.mjs
       - name: Verify published site and real Cloudflare storage
-        if: github.ref == 'refs/heads/main' || github.head_ref == 'fix/short-audio-video-export'
+        if: github.ref == 'refs/heads/main'
         working-directory: backend
         run: node qa/live-flow.mjs

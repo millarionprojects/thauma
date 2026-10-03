@@ -146,6 +146,22 @@ try{
             console.log('Export diagnostics: '+JSON.stringify(diagnostic));
           }
           assert.equal(await page.locator('#exportPreview').isVisible(),true,status);
+          if(await page.locator('#exportPreview').getAttribute('data-duration-verified')!=='true'){
+            const raw=await page.evaluate(async()=>{
+              const preview=document.querySelector('#exportPreview'),url=document.querySelector('#downloadVideoFile').href;
+              const file=await(await fetch(url)).blob(),entry=window.__exportRecordings.at(-1);
+              const original=new Blob(entry.chunks,{type:entry.mime});
+              const hash=async b=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await b.arrayBuffer()))).join(',');
+              return {sameBytes:await hash(file)===await hash(original),sameFile:preview.src===url,
+                size:file.size,actual:preview.dataset.actualDuration};
+            });
+            assert.equal(raw.sameBytes,true);assert.equal(raw.sameFile,true);assert.ok(raw.size>0);assert.equal(raw.actual,'');
+            assert.match(status,/Видео готово\./);
+            assert.equal(await page.locator('#saveVideo').isVisible(),true);
+            assert.equal(await page.locator('#downloadVideoFile').isVisible(),true);
+            console.log('PASS: '+name+' completed recording remains available with its original bytes when timing cannot be checked');
+            continue;
+          }
           const result=await page.evaluate(async()=>{
             const bounded=promise=>new Promise((resolve,reject)=>{
           const timer=setTimeout(()=>reject(Error('Media did not finish within 15 seconds')),15000);
