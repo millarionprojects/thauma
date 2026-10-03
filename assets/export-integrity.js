@@ -1,14 +1,17 @@
-import {inspectMp4} from './mp4-integrity.js?v=20260922-rawstable2';
+import {inspectMp4} from './mp4-integrity.js?v=20261003-duration1';
 // A non-empty recorder Blob is not evidence of a complete movie.
-export function checkDuration(actual, expected) {
-  if (!Number.isFinite(actual) || actual < expected - 0.35) {
-    const error = new Error('Incomplete video');
+export function checkDurationRange(actual, minimum, maximum) {
+  if (!Number.isFinite(actual) || actual < minimum - .35 || actual > maximum + .75) {
+    const error = new Error('Recording duration is outside the expected range');
     error.code = 'INCOMPLETE_VIDEO';
     error.actualDuration = actual;
-    error.expectedDuration = expected;
+    error.expectedDuration = maximum;
     throw error;
   }
   return actual;
+}
+export function checkDuration(actual, expected) {
+  return checkDurationRange(actual, expected, expected);
 }
 
 export function waitForMedia(media, event, signal, timeout = 15000) {
@@ -30,7 +33,7 @@ export function waitForMedia(media, event, signal, timeout = 15000) {
   });
 }
 
-export async function verifyVideo(blob, expected, signal, {audioSeconds=0}={}) {
+export async function verifyVideo(blob, expected, signal, {audioSeconds=0,videoSeconds=expected}={}) {
   if(blob.type.toLowerCase().startsWith('video/mp4')){
     const result=await inspectMp4(blob,signal);
     const video=result.tracks.find(t=>t.kind==='vide');
@@ -45,10 +48,13 @@ export async function verifyVideo(blob, expected, signal, {audioSeconds=0}={}) {
       error.code='INCOMPLETE_VIDEO';
       throw error;
     }
-    // This is deliberately the old stable behavior: do not reject an iPhone
-    // MP4 because Safari reports a strange duration. Preserve the file exactly
-    // as MediaRecorder produced it and allow Save when encoded tracks exist.
-    return result;
+    checkDurationRange(video.duration, videoSeconds, expected);
+    if(audioSeconds)checkDurationRange(audio.duration, audioSeconds, expected);
+    const sampleEnd=Math.max(...result.tracks.filter(t=>t.samples).map(t=>t.duration+t.startTime));
+    const duration=result.movieDuration||sampleEnd;
+    checkDurationRange(duration,Math.max(videoSeconds,audioSeconds),expected);
+    if(sampleEnd>expected+.75)checkDurationRange(sampleEnd,videoSeconds,expected);
+    return {...result,duration};
   }
   const video = document.createElement('video');
   const url = URL.createObjectURL(blob);

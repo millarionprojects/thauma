@@ -6,7 +6,8 @@ import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-a
 import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js?v=20261002-loading1";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
-import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-rawstable2';
+import { verifyVideo, waitForMedia } from './export-integrity.js?v=20261003-duration1';
+import { normalizeMp4Timeline } from './mp4-integrity.js?v=20261003-duration1';
 import { createExportPainter } from './export-render.js?v=20260921-video2';
 import { shareVideoFile, saveMessage } from './export-save.js?v=20260922-rawstable2';
 async function de(t, signal) {
@@ -366,10 +367,12 @@ async function he() {
     phase='checking';
     m(q === 'en' ? 'Checking the video file…' : 'Проверяем видеофайл…');
     e('downloadVideo').textContent=q==='en'?'Checking video…':'Проверяем видео…';
-    const verified = await verifyVideo(N, totalDuration / 1000, x.signal,{audioSeconds});
+    const videoSeconds=Math.min(totalDuration/1000,Y[a.design]+PRESENTATION_SECONDS);
+    const prepared=await normalizeMp4Timeline(N,x.signal,{expectedDuration:totalDuration/1000,videoSeconds});
+    const verified = await verifyVideo(prepared, totalDuration / 1000, x.signal,{audioSeconds,videoSeconds});
     e('exportPreview').dataset.expectedDuration = String(totalDuration / 1000);
     e('exportPreview').dataset.actualDuration = String(verified.duration);
-    y = new File([N], "thauma-" + a.design + "-opening." + (R.includes("mp4") ? "mp4" : "webm"), { type: R.split(";")[0] }), L = URL.createObjectURL(y), e("exportPreview").src = L, e("exportPreview").hidden = false, e("saveVideo").hidden = false, e("saveHelp").hidden = false, m(o("videoReady") + (R.includes("mp4") ? "" : " " + o("videoNoMp4")));
+    y = new File([prepared], "thauma-" + a.design + "-opening." + (R.includes("mp4") ? "mp4" : "webm"), { type: R.split(";")[0] }), L = URL.createObjectURL(y), e("exportPreview").src = L, e("exportPreview").hidden = false, e("saveVideo").hidden = false, e("saveHelp").hidden = false, m(o("videoReady") + (R.includes("mp4") ? "" : " " + o("videoNoMp4")));
     e('downloadVideoFile').href=L;e('downloadVideoFile').download=y.name;e('downloadVideoFile').hidden=false;
     e('saveHelp').textContent=q==='en'
       ? 'For Photos, choose Save / share → Save Video if offered. Download video saves the file to Downloads.'

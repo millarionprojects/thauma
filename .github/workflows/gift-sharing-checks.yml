@@ -36,9 +36,16 @@ jobs:
           node --experimental-default-type=module --check assets/open-bootstrap.js
           node --experimental-default-type=module --check assets/loading-deadline.js
           node --experimental-default-type=module --check assets/export-audio.js
+          node --experimental-default-type=module --check assets/mp4-integrity.js
+          node --experimental-default-type=module --check assets/export-integrity.js
       - name: Test creation and independent recipient
         working-directory: backend
         run: npm test
+      - name: Verify video timing and preserved video/audio bytes
+        working-directory: backend
+        run: |
+          ffmpeg -version
+          node --test qa/video-export.test.mjs
       - name: Validate Worker bundle
         working-directory: backend
         run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/thauma-worker
@@ -53,6 +60,9 @@ jobs:
       - name: Verify mobile WebKit loading and recovery
         working-directory: backend
         run: node qa/open-loading.mjs
+      - name: Verify native MP4 duration and actual video exports
+        working-directory: backend
+        run: node qa/video-duration.mjs
       - name: Verify published site and real Cloudflare storage
         if: github.ref == 'refs/heads/main'
         working-directory: backend
