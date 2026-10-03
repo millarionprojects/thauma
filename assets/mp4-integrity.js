@@ -230,6 +230,16 @@ export async function normalizeMp4Timeline(blob,signal,{expectedDuration=0,video
   const origin=Math.min(...active.map(t=>t.startTime));
   if(top.some(b=>b.type==='moof')&&origin>expectedDuration+.75){
     if(top.some(b=>b.type==='sidx'||b.type==='mfra'))fail('Indexed MP4 timeline cannot be repaired safely');
+    for(const {trak,track:t} of meta.values()){
+      const edts=child(v,trak,'edts'),elst=edts&&child(v,edts,'elst');
+      if(!elst)continue;
+      const wide=v.getUint8(elst.data)===1,count=u32(v,elst.data+4),stride=wide?20:12;
+      if(elst.data+8+count*stride>elst.end)fail('Truncated MP4 edit list');
+      for(let i=0,p=elst.data+8;i<count;i++,p+=stride){
+        const time=wide?v.getBigInt64(p+8):BigInt(v.getInt32(p+4));
+        if(time>BigInt(Math.round((expectedDuration+.75)*t.timescale)))fail('Ambiguous MP4 edit-list clock origin');
+      }
+    }
     for(const moof of top.filter(b=>b.type==='moof')){
       interrupted(signal);
       const part=await blob.slice(moof.start,moof.end).arrayBuffer(),fv=view(part);
@@ -268,7 +278,10 @@ export async function normalizeMp4Timeline(blob,signal,{expectedDuration=0,video
         const p=elst.data+8,time=wide?v.getBigInt64(p+8):BigInt(v.getInt32(p+4));
         const rateAt=p+(wide?16:8);
         if(time<0n||fvRate(v,rateAt)!==1)fail('Unsupported invalid MP4 edit list');
-        presentation=Math.max(0,t.duration-Number(time)/t.timescale);
+        if(top.some(b=>b.type==='moof'))fail('Unsupported invalid fragmented MP4 edit list');
+        const minf=need(child(v,need(child(v,trak,'mdia')),'minf')),stbl=need(child(v,minf,'stbl'));
+        const end=flatPresentationEnd(v,stbl);
+        presentation=Math.max(0,(end-Number(time))/t.timescale);
         const ticks=Math.round(presentation*movieScale);
         if(wide)write64(v,p,ticks);else v.setUint32(p,ticks);
         changed=true;
@@ -298,3 +311,29 @@ export async function normalizeMp4Timeline(blob,signal,{expectedDuration=0,video
   return new Blob(parts,{type:blob.type});
 }
 const fvRate=(v,p)=>v.getInt16(p)+v.getUint16(p+2)/65536;
+
+
+// The displayed end uses PTS (DTS + ctts), not decode duration alone.
+// Walk run-length tables together without expanding them into sample arrays.
+function flatPresentationEnd(v,stbl){
+  const stts=need(child(v,stbl,'stts')),ctts=child(v,stbl,'ctts');
+  const timingRows=u32(v,stts.data+4),compositionRows=ctts?u32(v,ctts.data+4):0;
+  if(ctts&&ctts.data+8+compositionRows*8>ctts.end)fail('Truncated MP4 composition table');
+  let ci=0,remaining=0,offset=0,dts=0,end=0;
+  for(let ti=0,p=stts.data+8;ti<timingRows;ti++,p+=8){
+    let count=u32(v,p);const delta=u32(v,p+4);
+    while(count){
+      if(ctts&&!remaining){
+        if(ci>=compositionRows)fail('Incomplete MP4 composition table');
+        const cp=ctts.data+8+ci++*8;remaining=u32(v,cp);
+        offset=v.getUint8(ctts.data)===1?v.getInt32(cp+4):u32(v,cp+4);
+        if(!remaining)fail('Empty MP4 composition run');
+      }
+      const n=ctts?Math.min(count,remaining):count;
+      end=Math.max(end,dts+n*delta+offset);dts+=n*delta;count-=n;
+      if(ctts)remaining-=n;
+    }
+  }
+  if(ctts&&(remaining||ci!==compositionRows))fail('Invalid MP4 composition count');
+  return end;
+}

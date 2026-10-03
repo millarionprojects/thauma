@@ -59,12 +59,16 @@ try{
       const page=await context.newPage();
       await page.goto(base);
       const native=await page.evaluate(async()=>{
+        const bounded=promise=>new Promise((resolve,reject)=>{
+          const timer=setTimeout(()=>reject(Error('Media did not finish within 15 seconds')),15000);
+          promise.then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});
+        });
         const v=document.createElement('video');v.muted=true;v.playsInline=true;document.body.append(v);
         const loaded=new Promise((resolve,reject)=>{v.onloadedmetadata=resolve;v.onerror=()=>reject(Error('MP4 decode failed'));});
-        v.src='/fixture.mp4';await loaded;
+        v.src='/fixture.mp4';await bounded(loaded);
         const duration=v.duration;
         const seeked=new Promise((resolve,reject)=>{v.onseeked=resolve;v.onerror=()=>reject(Error('MP4 seek failed'));});
-        v.currentTime=2.8;await seeked;
+        v.currentTime=2.8;await bounded(seeked);
         const result={duration,width:v.videoWidth,ready:v.readyState,time:v.currentTime};v.remove();return result;
       });
       assert.ok(Math.abs(native.duration-3)<.05);assert.equal(native.width,160);
@@ -106,18 +110,22 @@ try{
           const status=await page.locator('#revealStatus').innerText();
           assert.equal(await page.locator('#exportPreview').isVisible(),true,status);
           const result=await page.evaluate(async()=>{
+            const bounded=promise=>new Promise((resolve,reject)=>{
+          const timer=setTimeout(()=>reject(Error('Media did not finish within 15 seconds')),15000);
+          promise.then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});
+        });
             const video=document.querySelector('#exportPreview'),download=document.querySelector('#downloadVideoFile');
-            if(video.readyState<1)await new Promise((resolve,reject)=>{
+            if(video.readyState<1)await bounded(new Promise((resolve,reject)=>{
               video.addEventListener('loadedmetadata',resolve,{once:true});video.addEventListener('error',reject,{once:true});
-            });
+            }));
             if(!Number.isFinite(video.duration)){
               const scanned=new Promise(resolve=>video.addEventListener('seeked',resolve,{once:true}));
-              video.currentTime=1e9;await scanned;
+              video.currentTime=1e9;await bounded(scanned);
             }
             const duration=video.duration,expected=Number(video.dataset.expectedDuration),actual=Number(video.dataset.actualDuration);
             const target=Math.max(0,Math.min(expected-.4,duration-.1));
             const seeked=new Promise(resolve=>video.addEventListener('seeked',resolve,{once:true}));
-            video.currentTime=target;await seeked;
+            video.currentTime=target;await bounded(seeked);
             const blob=await (await fetch(download.href)).blob();
             return {duration,expected,actual,ready:video.readyState,time:video.currentTime,type:blob.type,size:blob.size,
               sameFile:video.src===download.href};

@@ -80,12 +80,12 @@ function damageHeaders(source){
   }
   return new Blob([bytes],{type:'video/mp4'});
 }
-function shiftFragments(source,seconds){
+function shiftFragments(source,seconds,audioOffset=0){
   const bytes=Buffer.from(source),tracks=new Map(moovTracks(bytes).map(t=>[t.id,t]));
   for(const moof of boxes(bytes).filter(b=>b.type==='moof')){
     for(const traf of boxes(bytes,moof.data,moof.end).filter(b=>b.type==='traf')){
       const tfhd=child(bytes,traf,'tfhd'),tfdt=child(bytes,traf,'tfdt'),track=tracks.get(bytes.readUInt32BE(tfhd.data+4));
-      const add=BigInt(Math.round(seconds*track.scale));
+      const add=BigInt(Math.round((seconds+(track.kind==='soun'?audioOffset:0))*track.scale));
       if(bytes[tfdt.data]===1)bytes.writeBigUInt64BE(bytes.readBigUInt64BE(tfdt.data+4)+add,tfdt.data+4);
       else bytes.writeUInt32BE(bytes.readUInt32BE(tfdt.data+4)+Number(add),tfdt.data+4);
     }
@@ -169,15 +169,16 @@ test('a legitimate long final hold is preserved and a short recording is never s
   await assert.rejects(verifyVideo(short,25),{code:'INCOMPLETE_VIDEO'});
 });
 test('common device-clock rebase preserves relative A/V origin and compressed bytes',async()=>{
-  const broken=shiftFragments(fixtures.fragmented.bytes,10000),before=await inspectMp4(broken);
+  const broken=shiftFragments(fixtures.fragmented.bytes,10000,.125),before=await inspectMp4(broken);
   assert.ok(before.startTime>9999);
   const fixed=await normalizeMp4Timeline(broken,undefined,{expectedDuration:3}),after=await inspectMp4(fixed);
   assert.ok(after.startTime<.1);
   const difference=result=>result.tracks.find(t=>t.kind==='soun').startTime-result.tracks.find(t=>t.kind==='vide').startTime;
-  assert.ok(Math.abs(difference(before)-difference(after))<.002);
+  assert.ok(Math.abs(difference(before)-.125)<.002);
+  assert.ok(Math.abs(difference(after)-.125)<.002);
   assert.deepEqual(payloads(Buffer.from(await fixed.arrayBuffer())),payloads(fixtures.fragmented.bytes));
   const fixedPath=await save('fixed-origin',fixed);
-  assert.ok(Number(probe(fixedPath).format.duration)<3.2);
+  assert.ok(Number(probe(fixedPath).format.duration)<3.3);
   assert.deepEqual(encodedHashes(fixedPath),encodedHashes(fixtures.fragmented.path));
   await verifyVideo(fixed,3,undefined,{audioSeconds:3});
 });
@@ -244,4 +245,26 @@ test('does not guess timing when many video samples are malformed',async()=>{
   const fixed=await normalizeMp4Timeline(broken,undefined,{expectedDuration:3});
   await assert.rejects(verifyVideo(fixed,3),{code:'INCOMPLETE_VIDEO'});
   assert.deepEqual(payloads(Buffer.from(await fixed.arrayBuffer())),payloads(bytes));
+});
+
+test('repairs oversized edit duration using PTS, preserving B-frames and AAC priming',async()=>{
+  const bytes=Buffer.from(fixtures.flat.bytes),originalMediaTimes=[];
+  for(const t of moovTracks(bytes)){
+    const edts=child(bytes,t.trak,'edts'),elst=edts&&child(bytes,edts,'elst');assert.ok(elst);
+    assert.equal(bytes[elst.data],0);assert.equal(bytes.readUInt32BE(elst.data+4),1);
+    originalMediaTimes.push(bytes.readInt32BE(elst.data+12));
+    bytes.writeUInt32BE(0x7fffffff,elst.data+8);
+  }
+  const broken=new Blob([bytes],{type:'video/mp4'});
+  const fixed=await normalizeMp4Timeline(broken,undefined,{expectedDuration:3});
+  const fixedPath=await save('fixed-edit-duration',fixed),output=readFileSync(fixedPath);
+  assert.ok(Math.abs(Number(probe(fixedPath).format.duration)-3)<.02);
+  const mediaTimes=moovTracks(output).map(t=>{
+    const elst=child(output,child(output,t.trak,'edts'),'elst');
+    return output.readInt32BE(elst.data+12);
+  });
+  assert.deepEqual(mediaTimes,originalMediaTimes);
+  assert.deepEqual(boxBytes(output,'ctts'),boxBytes(fixtures.flat.bytes,'ctts'));
+  assert.deepEqual(decodedFrames(fixedPath),decodedFrames(fixtures.flat.path));
+  assert.equal(decodedAudio(fixedPath),decodedAudio(fixtures.flat.path));
 });
