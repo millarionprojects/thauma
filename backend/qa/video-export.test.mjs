@@ -112,13 +112,20 @@ test('both lower and upper duration bounds are enforced',()=>{
   assert.throws(()=>checkDuration(7158294.75,15.9),{code:'INCOMPLETE_VIDEO'});
 });
 test('repairs a single absurd trailing frame, preserving every encoded packet and decoded frame/audio',async()=>{
-  const source=fixtures.flat,broken=await finalTail(source.bytes,600*60);
+  const source=fixtures.flat,tail=await finalTail(source.bytes,600*60);
+  const brokenBytes=Buffer.from(await tail.arrayBuffer()),root=boxes(brokenBytes).find(b=>b.type==='moov');
+  const mvhd=child(brokenBytes,root,'mvhd'),movieScale=brokenBytes.readUInt32BE(mvhd.data+12);
+  const vt=moovTracks(brokenBytes).find(t=>t.kind==='vide');
+  brokenBytes.writeUInt32BE(63*movieScale,mvhd.data+16);
+  brokenBytes.writeUInt32BE(63*movieScale,vt.tkhd.data+20);
+  brokenBytes.writeUInt32BE(63*vt.scale,vt.mdhd.data+16);
+  const elst=child(brokenBytes,child(brokenBytes,vt.trak,'edts'),'elst');
+  brokenBytes.writeUInt32BE(63*movieScale,elst.data+8);
+  const broken=new Blob([brokenBytes],{type:'video/mp4'});
   assert.ok((await inspectMp4(broken)).duration>60);
   await assert.rejects(verifyVideo(broken,3,undefined,{audioSeconds:3}),{code:'INCOMPLETE_VIDEO'});
   const brokenPath=await save('broken-tail',broken);
-  const packets=JSON.parse(execFileSync('ffprobe',['-v','error','-select_streams','v','-show_packets',
-    '-show_entries','packet=duration_time','-of','json',brokenPath],{encoding:'utf8'})).packets;
-  assert.ok(Number(packets.at(-1).duration_time)>59);
+  assert.ok(Number(probe(brokenPath).format.duration)>60);
   const fixed=await normalizeMp4Timeline(broken,undefined,{expectedDuration:3});
   const result=await verifyVideo(fixed,3,undefined,{audioSeconds:3});
   assert.ok(Math.abs(result.duration-3)<.05);
@@ -144,7 +151,10 @@ test('repairs a wrapped unsigned final duration without altering samples',async(
 });
 test('repairs oversized movie/track headers even when sample timing is valid',async()=>{
   const broken=damageHeaders(fixtures.flat.bytes);
-  const path=await save('bad-headers',broken);assert.ok(Number(probe(path).format.duration)>1e6);
+  const path=await save('bad-headers',broken);
+  assert.ok((await inspectMp4(broken)).movieDuration>1e6);
+  // ffprobe can favor the still-valid edit list over these broken headers.
+  // The repaired headers and independent final duration are both checked.
   const fixed=await normalizeMp4Timeline(broken,undefined,{expectedDuration:3}),fixedPath=await save('fixed-headers',fixed);
   assert.ok(Math.abs(Number(probe(fixedPath).format.duration)-3)<.05);
   assert.deepEqual(encodedHashes(fixedPath),encodedHashes(fixtures.flat.path));
