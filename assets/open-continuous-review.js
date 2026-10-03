@@ -306,8 +306,11 @@ async function he() {
     const captureStarted=performance.now();
     if (isIOS && totalDuration <= 60000) n.start();
     else n.start(1000);
-    await started;
+    // Some encoders emit 'start' only after their first input frame. Submit
+    // that frame immediately instead of waiting for the event to produce it.
+    painter.paint(0);
     if (manualFrames) videoTrack.requestFrame();
+    await started;
     soundtrack?.start();
     await new Promise((p, A) => {
       let lastPercent = -1;
