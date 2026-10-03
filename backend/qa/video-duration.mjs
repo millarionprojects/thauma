@@ -132,7 +132,9 @@ try{
             const diagnostic=await page.evaluate(async()=>{
               const entry=window.__exportRecordings.at(-1),blob=new Blob(entry.chunks,{type:entry.mime});
               const {inspectMp4}=await import('./assets/mp4-integrity.js?v=20261003-duration1');
-              const inspected=blob.type.startsWith('video/mp4')?await inspectMp4(blob):null;
+              let inspected=null;
+              try{if(blob.type.startsWith('video/mp4'))inspected=await inspectMp4(blob);}
+              catch(error){inspected={error:error.message,code:error.code};}
               return {mime:entry.mime,size:blob.size,events:entry.events,inspected};
             });
             console.log('Export diagnostics: '+JSON.stringify(diagnostic));

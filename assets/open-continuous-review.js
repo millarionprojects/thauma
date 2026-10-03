@@ -306,11 +306,15 @@ async function he() {
     const captureStarted=performance.now();
     if (isIOS && totalDuration <= 60000) n.start();
     else n.start(1000);
-    // Some encoders emit 'start' only after their first input frame. Submit
-    // that frame immediately instead of waiting for the event to produce it.
-    painter.paint(0);
-    if (manualFrames) videoTrack.requestFrame();
+    // WebM can emit 'start' only after receiving a frame. MP4 uses the
+    // established post-start delivery order to keep its fragment timeline.
+    const startNeedsFrame=w.includes('webm');
+    if(startNeedsFrame){
+      painter.paint(0);
+      if(manualFrames)videoTrack.requestFrame();
+    }
     await started;
+    if(!startNeedsFrame&&manualFrames)videoTrack.requestFrame();
     soundtrack?.start();
     await new Promise((p, A) => {
       let lastPercent = -1;
