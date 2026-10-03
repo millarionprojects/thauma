@@ -306,16 +306,19 @@ async function he() {
     const captureStarted=performance.now();
     if (isIOS && totalDuration <= 60000) n.start();
     else n.start(1000);
-    // WebM can emit 'start' only after receiving a frame. MP4 uses the
+    // WebM can emit 'start' only after both video and audio input arrive. MP4 uses the
     // established post-start delivery order to keep its fragment timeline.
     const startNeedsFrame=w.includes('webm');
     if(startNeedsFrame){
       painter.paint(0);
       if(manualFrames)videoTrack.requestFrame();
+      soundtrack?.start();
     }
     await started;
-    if(!startNeedsFrame&&manualFrames)videoTrack.requestFrame();
-    soundtrack?.start();
+    if(!startNeedsFrame){
+      if(manualFrames)videoTrack.requestFrame();
+      soundtrack?.start();
+    }
     await new Promise((p, A) => {
       let lastPercent = -1;
       const ne = performance.now(), ae = setTimeout(() => A(Error("Recording timeout")), totalDuration + 15e3), B = (S) => {
