@@ -116,7 +116,11 @@ try{
       if(!supported){
         console.log('SKIP: '+name+' build cannot record canvas streams; native MP4 metadata test passed');
       }else{
-        for(const sound of [true,false]){
+        for(const {sound,webm} of [{sound:true,webm:false},{sound:false,webm:false},{sound:true,webm:true}]){
+          if(webm)await page.evaluate(()=>{
+            const supported=MediaRecorder.isTypeSupported.bind(MediaRecorder);
+            MediaRecorder.isTypeSupported=type=>type.startsWith('video/webm')&&supported(type);
+          });
           await page.locator('#soundVideo').setChecked(sound);
           await page.locator('#downloadVideo').click();
           await page.waitForFunction(()=>{
@@ -159,6 +163,7 @@ try{
           assert.ok(result.actual>=result.minimum-.35&&result.actual<=result.expected+.75,JSON.stringify(result));
           assert.ok(Math.abs(result.duration-result.actual)<.1,JSON.stringify(result));
           assert.ok(result.ready>=2);assert.equal(result.sameFile,true);assert.ok(result.size>10000);
+          assert.match(result.type,webm?/^video\\/webm/:/^video\\/mp4/);
           assert.ok(result.planned>=(sound?12:7));
           assert.ok(result.expected>=result.planned&&result.expected<result.planned+15,JSON.stringify(result));
           assert.match(status,/Видео готово:/);
