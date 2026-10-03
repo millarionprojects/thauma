@@ -299,15 +299,16 @@ async function he() {
     });
     D.catch(() => {
     });
-    const started = waitForMedia(n, 'start', x.signal);
+    const started = w.includes('webm') ? null : waitForMedia(n, 'start', x.signal);
     phase='recording';
     // Avoid one-second MP4 fragmentation for short iPhone exports. stop() still
     // emits the complete final Blob; timeslices remain for unusually long clips.
     const captureStarted=performance.now();
     if (isIOS && totalDuration <= 60000) n.start();
     else n.start(1000);
-    // WebM can emit 'start' only after both video and audio input arrive. MP4 uses the
-    // established post-start delivery order to keep its fragment timeline.
+    // WebM needs a continuous flow of frames/audio before its asynchronous
+    // start notification. start() sets state synchronously, so do not block
+    // that flow waiting for the event. MP4 keeps its established event order.
     const startNeedsFrame=w.includes('webm');
     if(startNeedsFrame){
       painter.paint(0);
