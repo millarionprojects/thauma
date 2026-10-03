@@ -36,7 +36,7 @@ function wav(seconds){
   for(let i=0;i<count;i++)out.writeInt16LE(Math.round(Math.sin(i*2*Math.PI*440/rate)*6000),44+i*2);
   return out;
 }
-const audio=wav(12);
+const audio=wav(12),shortAudio=wav(.1);shortAudio.fill(0,44);
 let base;
 const server=createServer(async(req,res)=>{
   try{
@@ -85,12 +85,12 @@ try{
       let shortClip=false;
       await context.route('**/api/gifts/**',async route=>{
         const pathname=new URL(route.request().url()).pathname,headers={'Access-Control-Allow-Origin':base};
-        if(pathname.endsWith('/audio'))return route.fulfill({headers,contentType:'audio/wav',body:shortClip?wav(.1):audio});
+        if(pathname.endsWith('/audio'))return route.fulfill({headers,contentType:'audio/wav',body:shortClip?shortAudio:audio});
         if(pathname.endsWith('/file'))return route.fulfill({headers,contentType:'image/png',body:png});
         return route.fulfill({headers,contentType:'application/json',body:JSON.stringify({
-          id,title:'Gift',amount:'',message:'Happy birthday',design:shortClip?'envelope-gold':'classic',lang:'ru',theme:'light',
+          id,title:'Gift',amount:'',message:'Happy birthday',design:'classic',lang:'ru',theme:'light',
           file:{name:'certificate.png',type:'image/png',size:png.length},
-          audio:{name:'music.wav',type:'audio/wav',size:shortClip?wav(.1).length:audio.length},expiresAt:Date.now()+86400000
+          audio:{name:'music.wav',type:'audio/wav',size:shortClip?shortAudio.length:audio.length},expiresAt:Date.now()+86400000
         })});
       });
       const errors=[];page.on('pageerror',error=>errors.push(error.message));
