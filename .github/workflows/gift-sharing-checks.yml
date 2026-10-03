@@ -38,6 +38,9 @@ jobs:
           node --experimental-default-type=module --check assets/export-audio.js
           node --experimental-default-type=module --check assets/mp4-integrity.js
           node --experimental-default-type=module --check assets/export-integrity.js
+          node --check backend/qa/video-export.test.mjs
+          node --check backend/qa/video-duration.mjs
+          node --check backend/qa/live-flow.mjs
       - name: Test creation and independent recipient
         working-directory: backend
         run: npm test

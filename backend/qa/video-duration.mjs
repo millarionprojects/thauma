@@ -163,7 +163,7 @@ try{
           assert.ok(result.actual>=result.minimum-.35&&result.actual<=result.expected+.75,JSON.stringify(result));
           assert.ok(Math.abs(result.duration-result.actual)<.1,JSON.stringify(result));
           assert.ok(result.ready>=2);assert.equal(result.sameFile,true);assert.ok(result.size>10000);
-          assert.match(result.type,webm?/^video\\/webm/:/^video\\/mp4/);
+          assert.ok(result.type.startsWith(webm?'video/webm':'video/mp4'));
           assert.ok(result.planned>=(sound?12:7));
           assert.ok(result.expected>=result.planned&&result.expected<result.planned+15,JSON.stringify(result));
           assert.match(status,/Видео готово:/);
