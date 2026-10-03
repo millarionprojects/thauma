@@ -36,9 +36,23 @@ jobs:
           node --experimental-default-type=module --check assets/open-bootstrap.js
           node --experimental-default-type=module --check assets/loading-deadline.js
           node --experimental-default-type=module --check assets/export-audio.js
+          node --experimental-default-type=module --check assets/mp4-integrity.js
+          node --experimental-default-type=module --check assets/export-integrity.js
+          node --check backend/qa/video-export.test.mjs
+          node --check backend/qa/video-duration.mjs
+          node --check backend/qa/live-flow.mjs
       - name: Test creation and independent recipient
         working-directory: backend
         run: npm test
+      - name: Install independent media verification tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Verify video timing and preserved video/audio bytes
+        working-directory: backend
+        run: |
+          ffmpeg -version
+          node --test qa/video-export.test.mjs
       - name: Validate Worker bundle
         working-directory: backend
         run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/thauma-worker
@@ -47,6 +61,10 @@ jobs:
         run: |
           npm install --no-save --package-lock=false playwright@1.55.0
           npx playwright install --with-deps chromium webkit
+          npx playwright install chrome
+      - name: Verify native MP4 duration and actual video exports
+        working-directory: backend
+        run: node qa/video-duration.mjs
       - name: Verify actual UI in independent browser contexts
         working-directory: backend
         run: node qa/browser-flow.mjs

@@ -16,18 +16,24 @@ for (let attempt = 0; attempt < 24; attempt++) {
   try {
     const response = await fetch(site + 'assets/sharing-config.js?revision=' + revision, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
     const html = await fetch(site + '?revision=' + revision, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
-    if (response.ok && (await response.text()).includes(root) && html.ok && (await html.text()).includes('20261002-loading1')) { ready = true; break; }
+    const [opener,bootstrap]=await Promise.all([
+      fetch(site+'open.html?revision='+revision,{cache:'no-store',signal:AbortSignal.timeout(10000)}),
+      fetch(site+'assets/open-bootstrap.js?v=20261003-duration1&revision='+revision,{cache:'no-store',signal:AbortSignal.timeout(10000)})
+    ]);
+    if (response.ok && (await response.text()).includes(root) && html.ok && (await html.text()).includes('20261002-loading1')
+      && opener.ok && (await opener.text()).includes('open-bootstrap.js?v=20261003-duration1')
+      && bootstrap.ok && (await bootstrap.text()).includes('open-continuous-review.js?v=20261003-duration1')) { ready = true; break; }
   } catch {}
   await new Promise(resolve => setTimeout(resolve, 5000));
 }
-assert.ok(ready, 'GitHub Pages has not published the server configuration');
+assert.ok(ready, 'GitHub Pages has not published the current gift opener and server configuration');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5YsAAAAASUVORK5CYII=', 'base64');
 const wav = Buffer.alloc(44 + 3200);
 wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
 wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
 wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
 wav.write('data', 36); wav.writeUInt32LE(3200, 40);
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({ channel: 'chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const errors = [];
 try {
   const senderContext = await browser.newContext();
@@ -64,8 +70,22 @@ try {
   }));
   assert.deepEqual(Buffer.from(bytes.certificate), png);
   assert.deepEqual(Buffer.from(bytes.audio), wav);
+  await recipient.locator('#downloadVideo').click();
+  await recipient.waitForFunction(()=>{
+    return !document.querySelector('#exportPreview').hidden||!!document.querySelector('#revealStatus').dataset.exportError;
+  },null,{timeout:90000});
+  assert.equal(await recipient.locator('#exportPreview').isVisible(),true,await recipient.locator('#revealStatus').innerText());
+  const timing=await recipient.evaluate(async()=>{
+    const preview=document.querySelector('#exportPreview'),url=document.querySelector('#downloadVideoFile').href;
+    const blob=await(await fetch(url)).blob();
+    const {verifyVideo}=await import('./assets/export-integrity.js?v=20261003-duration1');
+    const expected=Number(preview.dataset.expectedDuration),result=await verifyVideo(blob,expected,undefined,{audioSeconds:.1,videoSeconds:6});
+    return {duration:result.duration,expected,displayed:Number(preview.dataset.actualDuration),minimum:Number(preview.dataset.minimumDuration),sameFile:preview.src===url};
+  });
+  assert.ok(timing.duration>=timing.minimum-.35&&timing.duration<=timing.expected+.75);
+  assert.equal(timing.displayed,timing.duration);assert.equal(timing.sameFile,true);
   assert.deepEqual(errors, []);
-  console.log('PASS: public GitHub Pages creates a real R2 gift and an independent mobile browser receives the original certificate and audio');
+  console.log('PASS: public GitHub Pages creates a real R2 gift; an independent mobile browser receives original files and exports a video with validated duration');
 } finally {
   await browser.close();
 }

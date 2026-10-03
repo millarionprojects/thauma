@@ -6,7 +6,8 @@ import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-a
 import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js?v=20261002-loading1";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
-import { verifyVideo, waitForMedia } from './export-integrity.js?v=20260922-rawstable2';
+import { verifyVideo, waitForMedia } from './export-integrity.js?v=20261003-duration1';
+import { normalizeMp4Timeline } from './mp4-integrity.js?v=20261003-duration1';
 import { createExportPainter } from './export-render.js?v=20260921-video2';
 import { shareVideoFile, saveMessage } from './export-save.js?v=20260922-rawstable2';
 async function de(t, signal) {
@@ -298,15 +299,27 @@ async function he() {
     });
     D.catch(() => {
     });
-    const started = waitForMedia(n, 'start', x.signal);
+    const started = w.includes('webm') ? null : waitForMedia(n, 'start', x.signal);
     phase='recording';
     // Avoid one-second MP4 fragmentation for short iPhone exports. stop() still
     // emits the complete final Blob; timeslices remain for unusually long clips.
+    const captureStarted=performance.now();
     if (isIOS && totalDuration <= 60000) n.start();
     else n.start(1000);
+    // WebM needs a continuous flow of frames/audio before its asynchronous
+    // start notification. start() sets state synchronously, so do not block
+    // that flow waiting for the event. MP4 keeps its established event order.
+    const startNeedsFrame=w.includes('webm');
+    if(startNeedsFrame){
+      painter.paint(0);
+      if(manualFrames)videoTrack.requestFrame();
+      soundtrack?.start();
+    }
     await started;
-    if (manualFrames) videoTrack.requestFrame();
-    soundtrack?.start();
+    if(!startNeedsFrame){
+      if(manualFrames)videoTrack.requestFrame();
+      soundtrack?.start();
+    }
     await new Promise((p, A) => {
       let lastPercent = -1;
       const ne = performance.now(), ae = setTimeout(() => A(Error("Recording timeout")), totalDuration + 15e3), B = (S) => {
@@ -349,6 +362,7 @@ async function he() {
     complete = true;
     phase='finishing';
     const stopped = waitForMedia(n, 'stop', x.signal);
+    const recordedDuration=Math.max(totalDuration/1000,(performance.now()-captureStarted)/1000);
     n.stop();
     await stopped;
     await D;
@@ -366,10 +380,14 @@ async function he() {
     phase='checking';
     m(q === 'en' ? 'Checking the video file…' : 'Проверяем видеофайл…');
     e('downloadVideo').textContent=q==='en'?'Checking video…':'Проверяем видео…';
-    const verified = await verifyVideo(N, totalDuration / 1000, x.signal,{audioSeconds});
-    e('exportPreview').dataset.expectedDuration = String(totalDuration / 1000);
+    const videoSeconds=Math.min(totalDuration/1000,Y[a.design]+PRESENTATION_SECONDS);
+    const prepared=await normalizeMp4Timeline(N,x.signal,{expectedDuration:recordedDuration,videoSeconds});
+    const verified = await verifyVideo(prepared, recordedDuration, x.signal,{audioSeconds,videoSeconds});
+    e('exportPreview').dataset.expectedDuration = String(recordedDuration);
+    e('exportPreview').dataset.plannedDuration = String(totalDuration/1000);
+    e('exportPreview').dataset.minimumDuration = String(Math.max(videoSeconds,audioSeconds));
     e('exportPreview').dataset.actualDuration = String(verified.duration);
-    y = new File([N], "thauma-" + a.design + "-opening." + (R.includes("mp4") ? "mp4" : "webm"), { type: R.split(";")[0] }), L = URL.createObjectURL(y), e("exportPreview").src = L, e("exportPreview").hidden = false, e("saveVideo").hidden = false, e("saveHelp").hidden = false, m(o("videoReady") + (R.includes("mp4") ? "" : " " + o("videoNoMp4")));
+    y = new File([prepared], "thauma-" + a.design + "-opening." + (R.includes("mp4") ? "mp4" : "webm"), { type: R.split(";")[0] }), L = URL.createObjectURL(y), e("exportPreview").src = L, e("exportPreview").hidden = false, e("saveVideo").hidden = false, e("saveHelp").hidden = false, m(o("videoReady") + (R.includes("mp4") ? "" : " " + o("videoNoMp4")));
     e('downloadVideoFile').href=L;e('downloadVideoFile').download=y.name;e('downloadVideoFile').hidden=false;
     e('saveHelp').textContent=q==='en'
       ? 'For Photos, choose Save / share → Save Video if offered. Download video saves the file to Downloads.'
