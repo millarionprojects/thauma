@@ -53,7 +53,7 @@ try{
   for(const [name,engine] of [['WebKit',webkit],['Chrome',chromium]]){
     const browser=await engine.launch(name==='Chrome'?{channel:'chrome',args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']}:{});
     try{
-      const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
+      const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
       await context.route('**/api/config',route=>route.fulfill({headers:{'Access-Control-Allow-Origin':base},
         contentType:'application/json',body:JSON.stringify({publicSharing:true,audioSharing:true})}));
       const page=await context.newPage();
@@ -82,14 +82,15 @@ try{
         ctx.fillStyle='#153e36';ctx.font='52px serif';ctx.fillText('Gift certificate',80,180);
         return c.toDataURL('image/png').split(',')[1];
       }),'base64');
+      let shortClip=false;
       await context.route('**/api/gifts/**',async route=>{
         const pathname=new URL(route.request().url()).pathname,headers={'Access-Control-Allow-Origin':base};
-        if(pathname.endsWith('/audio'))return route.fulfill({headers,contentType:'audio/wav',body:audio});
+        if(pathname.endsWith('/audio'))return route.fulfill({headers,contentType:'audio/wav',body:shortClip?wav(.1):audio});
         if(pathname.endsWith('/file'))return route.fulfill({headers,contentType:'image/png',body:png});
         return route.fulfill({headers,contentType:'application/json',body:JSON.stringify({
-          id,title:'Gift',amount:'',message:'Happy birthday',design:'classic',lang:'ru',theme:'light',
+          id,title:'Gift',amount:'',message:'Happy birthday',design:shortClip?'envelope-gold':'classic',lang:'ru',theme:'light',
           file:{name:'certificate.png',type:'image/png',size:png.length},
-          audio:{name:'music.wav',type:'audio/wav',size:audio.length},expiresAt:Date.now()+86400000
+          audio:{name:'music.wav',type:'audio/wav',size:shortClip?wav(.1).length:audio.length},expiresAt:Date.now()+86400000
         })});
       });
       const errors=[];page.on('pageerror',error=>errors.push(error.message));
@@ -116,7 +117,12 @@ try{
       if(!supported){
         console.log('SKIP: '+name+' build cannot record canvas streams; native MP4 metadata test passed');
       }else{
-        for(const {sound,webm} of [{sound:true,webm:false},{sound:false,webm:false},{sound:true,webm:true}]){
+        for(const {sound,webm,short} of [{sound:true,webm:false,short:true},{sound:true,webm:false},{sound:false,webm:false},{sound:true,webm:true}]){
+          shortClip=!!short;
+          await page.goto(base+'/open.html?id='+id,{waitUntil:'domcontentloaded'});
+          await page.waitForFunction(()=>document.querySelector('#openButton')?.disabled===false,null,{timeout:30000});
+          await page.locator('#openButton').click();
+          await page.waitForFunction(()=>document.querySelector('#giftStage').dataset.state==='revealed');
           if(webm)await page.evaluate(()=>{
             const supported=MediaRecorder.isTypeSupported.bind(MediaRecorder);
             MediaRecorder.isTypeSupported=type=>type.startsWith('video/webm')&&supported(type);
@@ -166,10 +172,10 @@ try{
           assert.ok(Math.abs(result.duration-result.actual)<.1,JSON.stringify(result));
           assert.ok(result.ready>=2);assert.equal(result.sameFile,true);assert.ok(result.size>10000);
           assert.ok(result.type.startsWith(webm?'video/webm':'video/mp4'));
-          assert.ok(result.planned>=(sound?12:7));
+          assert.ok(result.planned>=(sound&&!short?12:7));
           assert.ok(result.expected>=result.planned&&result.expected<result.planned+15,JSON.stringify(result));
           assert.match(status,/Видео готово:/);
-          console.log('PASS: '+name+' actual '+(sound?'12-second soundtrack':'silent')+' export, verified and saved duration '+result.duration.toFixed(2)+' s ('+result.type+')');
+          console.log('PASS: '+name+' actual '+(short?'0.1-second soundtrack':sound?'12-second soundtrack':'silent')+' export, verified and saved duration '+result.duration.toFixed(2)+' s ('+result.type+')');
         }
       }
       assert.deepEqual(errors,[]);await context.close();
