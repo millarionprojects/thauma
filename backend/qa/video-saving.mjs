@@ -82,7 +82,7 @@ try{
         assert.equal(await page.locator('#exportPreview').isVisible(),false);
         assert.equal(await page.locator('#downloadVideoFile').isVisible(),false);
         assert.equal(await page.locator('#saveVideo').isVisible(),false);
-        assert.match(await page.locator('#revealStatus').getAttribute('data-export-error'),/^checking:AbortError$/);
+        assert.match(await page.locator('#revealStatus').getAttribute('data-export-error'),/^checking:(?:AbortError|20)$/);
         console.log('PASS: cancellation during checking does not offer a recording for saving');
       }else{
         assert.equal(await page.locator('#exportPreview').isVisible(),true,status);
