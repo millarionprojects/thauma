@@ -50,8 +50,8 @@ const server=createServer(async(req,res)=>{
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));base='http://127.0.0.1:'+server.address().port;
 try{
-  for(const [name,engine] of [['WebKit',webkit],['Chromium',chromium]]){
-    const browser=await engine.launch(name==='Chromium'?{args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']}:{});
+  for(const [name,engine] of [['WebKit',webkit],['Chrome',chromium]]){
+    const browser=await engine.launch(name==='Chrome'?{channel:'chrome',args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']}:{});
     try{
       const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
       await context.route('**/api/config',route=>route.fulfill({headers:{'Access-Control-Allow-Origin':base},

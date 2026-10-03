@@ -58,6 +58,7 @@ jobs:
         run: |
           npm install --no-save --package-lock=false playwright@1.55.0
           npx playwright install --with-deps chromium webkit
+          npx playwright install chrome
       - name: Verify native MP4 duration and actual video exports
         working-directory: backend
         run: node qa/video-duration.mjs
