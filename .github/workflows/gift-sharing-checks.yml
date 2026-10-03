@@ -58,15 +58,15 @@ jobs:
         run: |
           npm install --no-save --package-lock=false playwright@1.55.0
           npx playwright install --with-deps chromium webkit
+      - name: Verify native MP4 duration and actual video exports
+        working-directory: backend
+        run: node qa/video-duration.mjs
       - name: Verify actual UI in independent browser contexts
         working-directory: backend
         run: node qa/browser-flow.mjs
       - name: Verify mobile WebKit loading and recovery
         working-directory: backend
         run: node qa/open-loading.mjs
-      - name: Verify native MP4 duration and actual video exports
-        working-directory: backend
-        run: node qa/video-duration.mjs
       - name: Verify published site and real Cloudflare storage
         if: github.ref == 'refs/heads/main'
         working-directory: backend

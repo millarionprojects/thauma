@@ -64,12 +64,13 @@ try{
           promise.then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});
         });
         const v=document.createElement('video');v.muted=true;v.playsInline=true;document.body.append(v);
-        const loaded=new Promise((resolve,reject)=>{v.onloadedmetadata=resolve;v.onerror=()=>reject(Error('MP4 decode failed'));});
-        v.src='/fixture.mp4';await bounded(loaded);
+        const loaded=new Promise((resolve,reject)=>{v.onloadedmetadata=resolve;v.onerror=()=>reject(Error('MP4 decode failed: '+v.error?.code+' '+v.error?.message));});
+        const url=URL.createObjectURL(await(await fetch('/fixture.mp4')).blob());
+        v.src=url;await bounded(loaded);
         const duration=v.duration;
-        const seeked=new Promise((resolve,reject)=>{v.onseeked=resolve;v.onerror=()=>reject(Error('MP4 seek failed'));});
+        const seeked=new Promise((resolve,reject)=>{v.onseeked=resolve;v.onerror=()=>reject(Error('MP4 seek failed: '+v.error?.code+' '+v.error?.message));});
         v.currentTime=2.8;await bounded(seeked);
-        const result={duration,width:v.videoWidth,ready:v.readyState,time:v.currentTime};v.remove();return result;
+        const result={duration,width:v.videoWidth,ready:v.readyState,time:v.currentTime};v.remove();URL.revokeObjectURL(url);return result;
       });
       assert.ok(Math.abs(native.duration-3)<.05);assert.equal(native.width,160);
       assert.ok(native.ready>=2);assert.ok(Math.abs(native.time-2.8)<.1);
