@@ -72,6 +72,6 @@ jobs:
         working-directory: backend
         run: node qa/open-loading.mjs
       - name: Verify published site and real Cloudflare storage
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.head_ref == 'fix/short-audio-video-export'
         working-directory: backend
         run: node qa/live-flow.mjs

@@ -55,6 +55,24 @@ try {
   const recipientContext = await browser.newContext({
     viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce'
   });
+  await recipientContext.addInitScript(()=>{
+    const Base=window.MediaRecorder;if(!Base)return;
+    window.__exportRecordings=[];
+    window.MediaRecorder=class extends Base{
+      constructor(stream,options){
+        super(stream,options);
+        const entry={mime:options?.mimeType,events:[],chunks:[]};
+        window.__exportRecordings.push(entry);this.__recordingTrace=entry;
+        for(const event of ['start','stop','pause','resume','error'])this.addEventListener(event,()=>entry.events.push({event,time:performance.now()}));
+        this.addEventListener('dataavailable',event=>{
+          entry.events.push({event:'data',time:performance.now(),size:event.data.size});
+          if(event.data.size)entry.chunks.push(event.data);
+        });
+      }
+      start(...args){this.__recordingTrace.events.push({event:'startCall',time:performance.now()});return super.start(...args);}
+      stop(){this.__recordingTrace.events.push({event:'stopCall',time:performance.now()});return super.stop();}
+    };
+  });
   const recipient = await recipientContext.newPage();
   recipient.on('pageerror', error => errors.push(error.message));
   await recipient.goto(link);
@@ -74,6 +92,17 @@ try {
   await recipient.waitForFunction(()=>{
     return !document.querySelector('#exportPreview').hidden||!!document.querySelector('#revealStatus').dataset.exportError;
   },null,{timeout:90000});
+  if(!await recipient.locator('#exportPreview').isVisible()){
+    const diagnostic=await recipient.evaluate(async()=>{
+      const entry=window.__exportRecordings.at(-1),blob=new Blob(entry.chunks,{type:entry.mime});
+      const {inspectMp4}=await import('./assets/mp4-integrity.js?v=20261003-duration1');
+      let inspected;
+      try{inspected=blob.type.startsWith('video/mp4')?await inspectMp4(blob):null;}
+      catch(error){inspected={error:error.message,code:error.code};}
+      return {mime:entry.mime,size:blob.size,events:entry.events,inspected};
+    });
+    console.log('Synthetic live export diagnostics: '+JSON.stringify(diagnostic));
+  }
   assert.equal(await recipient.locator('#exportPreview').isVisible(),true,await recipient.locator('#revealStatus').innerText());
   const timing=await recipient.evaluate(async()=>{
     const preview=document.querySelector('#exportPreview'),url=document.querySelector('#downloadVideoFile').href;
