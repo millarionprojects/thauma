@@ -22,7 +22,7 @@
     panel.append(message, retry, back); stage.before(panel);
   }
   var timer = setTimeout(unavailable, 15000);
-  import('./open-continuous-review.js?v=20261003-duration1').then(function () {
+  import('./open-continuous-review.js?v=20261003-save1').then(function () {
     clearTimeout(timer);
     if (panel) { panel.remove(); panel = null; }
   }).catch(function () {

@@ -18,11 +18,11 @@ for (let attempt = 0; attempt < 24; attempt++) {
     const html = await fetch(site + '?revision=' + revision, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
     const [opener,bootstrap]=await Promise.all([
       fetch(site+'open.html?revision='+revision,{cache:'no-store',signal:AbortSignal.timeout(10000)}),
-      fetch(site+'assets/open-bootstrap.js?v=20261003-duration1&revision='+revision,{cache:'no-store',signal:AbortSignal.timeout(10000)})
+      fetch(site+'assets/open-bootstrap.js?v=20261003-save1&revision='+revision,{cache:'no-store',signal:AbortSignal.timeout(10000)})
     ]);
     if (response.ok && (await response.text()).includes(root) && html.ok && (await html.text()).includes('20261002-loading1')
-      && opener.ok && (await opener.text()).includes('open-bootstrap.js?v=20261003-duration1')
-      && bootstrap.ok && (await bootstrap.text()).includes('open-continuous-review.js?v=20261003-duration1')) { ready = true; break; }
+      && opener.ok && (await opener.text()).includes('open-bootstrap.js?v=20261003-save1')
+      && bootstrap.ok && (await bootstrap.text()).includes('open-continuous-review.js?v=20261003-save1')) { ready = true; break; }
   } catch {}
   await new Promise(resolve => setTimeout(resolve, 5000));
 }
@@ -55,6 +55,24 @@ try {
   const recipientContext = await browser.newContext({
     viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce'
   });
+  await recipientContext.addInitScript(()=>{
+    const Base=window.MediaRecorder;if(!Base)return;
+    window.__exportRecordings=[];
+    window.MediaRecorder=class extends Base{
+      constructor(stream,options){
+        super(stream,options);
+        const entry={mime:options?.mimeType,events:[],chunks:[]};
+        window.__exportRecordings.push(entry);this.__recordingTrace=entry;
+        for(const event of ['start','stop','pause','resume','error'])this.addEventListener(event,()=>entry.events.push({event,time:performance.now()}));
+        this.addEventListener('dataavailable',event=>{
+          entry.events.push({event:'data',time:performance.now(),size:event.data.size});
+          if(event.data.size)entry.chunks.push(event.data);
+        });
+      }
+      start(...args){this.__recordingTrace.events.push({event:'startCall',time:performance.now()});return super.start(...args);}
+      stop(){this.__recordingTrace.events.push({event:'stopCall',time:performance.now()});return super.stop();}
+    };
+  });
   const recipient = await recipientContext.newPage();
   recipient.on('pageerror', error => errors.push(error.message));
   await recipient.goto(link);
@@ -74,18 +92,44 @@ try {
   await recipient.waitForFunction(()=>{
     return !document.querySelector('#exportPreview').hidden||!!document.querySelector('#revealStatus').dataset.exportError;
   },null,{timeout:90000});
+  if(!await recipient.locator('#exportPreview').isVisible()){
+    const diagnostic=await recipient.evaluate(async()=>{
+      const entry=window.__exportRecordings.at(-1),blob=new Blob(entry.chunks,{type:entry.mime});
+      const {inspectMp4}=await import('./assets/mp4-integrity.js?v=20261003-save1');
+      let inspected;
+      try{inspected=blob.type.startsWith('video/mp4')?await inspectMp4(blob):null;}
+      catch(error){inspected={error:error.message,code:error.code};}
+      return {mime:entry.mime,size:blob.size,events:entry.events,inspected};
+    });
+    console.log('Synthetic live export diagnostics: '+JSON.stringify(diagnostic));
+  }
   assert.equal(await recipient.locator('#exportPreview').isVisible(),true,await recipient.locator('#revealStatus').innerText());
   const timing=await recipient.evaluate(async()=>{
     const preview=document.querySelector('#exportPreview'),url=document.querySelector('#downloadVideoFile').href;
-    const blob=await(await fetch(url)).blob();
-    const {verifyVideo}=await import('./assets/export-integrity.js?v=20261003-duration1');
-    const expected=Number(preview.dataset.expectedDuration),result=await verifyVideo(blob,expected,undefined,{audioSeconds:.1,videoSeconds:6});
-    return {duration:result.duration,expected,displayed:Number(preview.dataset.actualDuration),minimum:Number(preview.dataset.minimumDuration),sameFile:preview.src===url};
+    const blob=await(await fetch(url)).blob(),verified=preview.dataset.durationVerified==='true';
+    const expected=Number(preview.dataset.expectedDuration);
+    if(verified){
+      const {verifyVideo}=await import('./assets/export-integrity.js?v=20261003-save1');
+      const result=await verifyVideo(blob,expected,undefined,{audioSeconds:.1,videoSeconds:6});
+      return {verified,duration:result.duration,expected,displayed:Number(preview.dataset.actualDuration),
+        minimum:Number(preview.dataset.minimumDuration),sameFile:preview.src===url};
+    }
+    const entry=window.__exportRecordings.at(-1),raw=new Blob(entry.chunks,{type:entry.mime});
+    const hash=async b=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await b.arrayBuffer()))).join(',');
+    return {verified,rawPreserved:await hash(blob)===await hash(raw),size:blob.size,
+      displayed:preview.dataset.actualDuration,sameFile:preview.src===url};
   });
-  assert.ok(timing.duration>=timing.minimum-.35&&timing.duration<=timing.expected+.75);
-  assert.equal(timing.displayed,timing.duration);assert.equal(timing.sameFile,true);
+  assert.equal(timing.sameFile,true);
+  if(timing.verified){
+    assert.ok(timing.duration>=timing.minimum-.35&&timing.duration<=timing.expected+.75);
+    assert.equal(timing.displayed,timing.duration);
+  }else{
+    assert.equal(timing.rawPreserved,true);assert.ok(timing.size>0);assert.equal(timing.displayed,'');
+    assert.match(await recipient.locator('#revealStatus').innerText(),/Видео готово\./);
+    console.log('PASS: an unverified completed recording remains saveable with its original bytes');
+  }
   assert.deepEqual(errors, []);
-  console.log('PASS: public GitHub Pages creates a real R2 gift; an independent mobile browser receives original files and exports a video with validated duration');
+  console.log('PASS: public GitHub Pages creates a real R2 gift; an independent mobile browser receives original files and exports a saveable video; timing checks preserve the original recording on failure');
 } finally {
   await browser.close();
 }

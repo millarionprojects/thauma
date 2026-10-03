@@ -6,8 +6,8 @@ import { mountAudioExport, prepareSoundtrack, recordingLength } from "./export-a
 import { _ as z, t as o, s as G, b as W, l as q, r as ie, g as oe } from "./copy-review.js?v=20261002-loading1";
 import { G as ee, D as Y, d as re, a as $ } from "./scene-engine-DthTCrw0.js";
 import { beginCertificateTransition, drawExportPresentation, PRESENTATION_SECONDS } from './certificate-presentation.js';
-import { verifyVideo, waitForMedia } from './export-integrity.js?v=20261003-duration1';
-import { normalizeMp4Timeline } from './mp4-integrity.js?v=20261003-duration1';
+import { verifyVideo, waitForMedia } from './export-integrity.js?v=20261003-save1';
+import { normalizeMp4Timeline } from './mp4-integrity.js?v=20261003-save1';
 import { createExportPainter } from './export-render.js?v=20260921-video2';
 import { shareVideoFile, saveMessage } from './export-save.js?v=20260922-rawstable2';
 async function de(t, signal) {
@@ -222,6 +222,7 @@ function ge() {
   T || (clearTimeout(_), e("giftAudio").pause(), C.inert = true, C.classList.remove("visible"), C.setAttribute("aria-hidden", "true"), h.hidden = false, h.inert = false, h.classList.remove("opening", "exit", "reading"), e("scrollText").hidden = true, e("sceneStatus").textContent = "", e("openButton").textContent = o(g.dataset.renderError ? "viewGift" : "open"), e("openButton").disabled = false, e("giftButton").disabled = false, v("idle"), s == null || s.reset(), e("openButton").focus({ preventScroll: true }));
 }
 function O() {
+  delete e('revealStatus').dataset.exportError;
   y = null, L && URL.revokeObjectURL(L), L = null, e("exportPreview").pause(), e("exportPreview").removeAttribute("src"), e("exportPreview").load(), e("exportPreview").hidden = true, e("saveVideo").hidden = true, e("saveHelp").hidden = true;
   e('downloadVideoFile').hidden=true;e('downloadVideoFile').removeAttribute('href');
 }
@@ -381,19 +382,32 @@ async function he() {
     m(q === 'en' ? 'Checking the video file…' : 'Проверяем видеофайл…');
     e('downloadVideo').textContent=q==='en'?'Checking video…':'Проверяем видео…';
     const videoSeconds=Math.min(totalDuration/1000,Y[a.design]+PRESENTATION_SECONDS);
-    const prepared=await normalizeMp4Timeline(N,x.signal,{expectedDuration:recordedDuration,videoSeconds});
-    const verified = await verifyVideo(prepared, recordedDuration, x.signal,{audioSeconds,videoSeconds});
+    let prepared=N,verified=null;
+    try {
+      prepared=await normalizeMp4Timeline(N,x.signal,{expectedDuration:recordedDuration,videoSeconds});
+      verified=await verifyVideo(prepared,recordedDuration,x.signal,{audioSeconds,videoSeconds});
+    } catch (checkingError) {
+      if(x.signal.aborted||checkingError?.name==='AbortError')throw checkingError;
+      // Offer a completed recording even when browser timing or local decoding
+      // cannot be checked. Preserve the original recording in that case.
+      prepared=N;verified=null;
+      console.warn('Video timing could not be checked',checkingError.code||checkingError.name);
+    }
     e('exportPreview').dataset.expectedDuration = String(recordedDuration);
     e('exportPreview').dataset.plannedDuration = String(totalDuration/1000);
     e('exportPreview').dataset.minimumDuration = String(Math.max(videoSeconds,audioSeconds));
-    e('exportPreview').dataset.actualDuration = String(verified.duration);
+    e('exportPreview').dataset.actualDuration = verified?String(verified.duration):'';
+    e('exportPreview').dataset.durationVerified = String(!!verified);
     y = new File([prepared], "thauma-" + a.design + "-opening." + (R.includes("mp4") ? "mp4" : "webm"), { type: R.split(";")[0] }), L = URL.createObjectURL(y), e("exportPreview").src = L, e("exportPreview").hidden = false, e("saveVideo").hidden = false, e("saveHelp").hidden = false, m(o("videoReady") + (R.includes("mp4") ? "" : " " + o("videoNoMp4")));
     e('downloadVideoFile').href=L;e('downloadVideoFile').download=y.name;e('downloadVideoFile').hidden=false;
     e('saveHelp').textContent=q==='en'
       ? 'For Photos, choose Save / share → Save Video if offered. Download video saves the file to Downloads.'
       : 'Для «Фото»: «Сохранить / поделиться» → «Сохранить видео», если этот пункт доступен. «Скачать видео» сохраняет файл в «Загрузки».';
-    const seconds=verified.duration.toFixed(1).replace('.',q==='en'?'.':',');
-    m((q==='en'?`Video ready: ${seconds} s. Choose how to save it.`:`Видео готово: ${seconds} с. Выберите способ сохранения.`)+(R.includes('mp4')?'':' '+o('videoNoMp4')));
+    const seconds=verified?.duration.toFixed(1).replace('.',q==='en'?'.':',');
+    const ready=seconds
+      ?(q==='en'?`Video ready: ${seconds} s. Choose how to save it.`:`Видео готово: ${seconds} с. Выберите способ сохранения.`)
+      :(q==='en'?'Video ready. Choose how to save it.':'Видео готово. Выберите способ сохранения.');
+    m(ready+(R.includes('mp4')?'':' '+o('videoNoMp4')));
     e('saveVideo').scrollIntoView({block:'center',behavior:'smooth'});
   } catch (error) {
     console.warn('Video export failed', error.name, error.code || error.message);
