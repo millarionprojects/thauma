@@ -303,6 +303,7 @@ async function he() {
     phase='recording';
     // Avoid one-second MP4 fragmentation for short iPhone exports. stop() still
     // emits the complete final Blob; timeslices remain for unusually long clips.
+    const captureStarted=performance.now();
     if (isIOS && totalDuration <= 60000) n.start();
     else n.start(1000);
     await started;
@@ -350,6 +351,7 @@ async function he() {
     complete = true;
     phase='finishing';
     const stopped = waitForMedia(n, 'stop', x.signal);
+    const recordedDuration=Math.max(totalDuration/1000,(performance.now()-captureStarted)/1000);
     n.stop();
     await stopped;
     await D;
@@ -368,9 +370,11 @@ async function he() {
     m(q === 'en' ? 'Checking the video file…' : 'Проверяем видеофайл…');
     e('downloadVideo').textContent=q==='en'?'Checking video…':'Проверяем видео…';
     const videoSeconds=Math.min(totalDuration/1000,Y[a.design]+PRESENTATION_SECONDS);
-    const prepared=await normalizeMp4Timeline(N,x.signal,{expectedDuration:totalDuration/1000,videoSeconds});
-    const verified = await verifyVideo(prepared, totalDuration / 1000, x.signal,{audioSeconds,videoSeconds});
-    e('exportPreview').dataset.expectedDuration = String(totalDuration / 1000);
+    const prepared=await normalizeMp4Timeline(N,x.signal,{expectedDuration:recordedDuration,videoSeconds});
+    const verified = await verifyVideo(prepared, recordedDuration, x.signal,{audioSeconds,videoSeconds});
+    e('exportPreview').dataset.expectedDuration = String(recordedDuration);
+    e('exportPreview').dataset.plannedDuration = String(totalDuration/1000);
+    e('exportPreview').dataset.minimumDuration = String(Math.max(videoSeconds,audioSeconds));
     e('exportPreview').dataset.actualDuration = String(verified.duration);
     y = new File([prepared], "thauma-" + a.design + "-opening." + (R.includes("mp4") ? "mp4" : "webm"), { type: R.split(";")[0] }), L = URL.createObjectURL(y), e("exportPreview").src = L, e("exportPreview").hidden = false, e("saveVideo").hidden = false, e("saveHelp").hidden = false, m(o("videoReady") + (R.includes("mp4") ? "" : " " + o("videoNoMp4")));
     e('downloadVideoFile').href=L;e('downloadVideoFile').download=y.name;e('downloadVideoFile').hidden=false;

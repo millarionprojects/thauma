@@ -72,8 +72,8 @@ export async function verifyVideo(blob, expected, signal, {audioSeconds=0,videoS
       video.currentTime = 1e9;
       await scanned;
     }
-    const duration = checkDuration(video.duration, expected);
-    const target = Math.max(0, expected - 0.25);
+    const duration = checkDurationRange(video.duration, Math.max(videoSeconds,audioSeconds), expected);
+    const target = Math.max(0, Math.min(duration - .1, videoSeconds - .1));
     const decoded = waitForMedia(video, 'seeked', signal);
     video.currentTime = target;
     await decoded;

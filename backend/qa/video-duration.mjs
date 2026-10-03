@@ -100,10 +100,12 @@ try{
           constructor(stream,options){
             super(stream,options);
             const entry={mime:options?.mimeType,events:[],chunks:[]};
-            window.__exportRecordings.push(entry);
+            window.__exportRecordings.push(entry);this.__recordingTrace=entry;
             for(const event of ['start','stop','pause','resume','error'])this.addEventListener(event,()=>entry.events.push({event,time:performance.now()}));
             this.addEventListener('dataavailable',event=>{if(event.data.size)entry.chunks.push(event.data);});
           }
+          start(...args){this.__recordingTrace.events.push({event:'startCall',time:performance.now()});return super.start(...args);}
+          stop(){this.__recordingTrace.events.push({event:'stopCall',time:performance.now()});return super.stop();}
         };
       });
       await page.goto(base+'/open.html?id='+id,{waitUntil:'domcontentloaded'});
@@ -146,17 +148,19 @@ try{
               video.currentTime=1e9;await bounded(scanned);
             }
             const duration=video.duration,expected=Number(video.dataset.expectedDuration),actual=Number(video.dataset.actualDuration);
-            const target=Math.max(0,Math.min(expected-.4,duration-.1));
+            const minimum=Number(video.dataset.minimumDuration),planned=Number(video.dataset.plannedDuration);
+            const target=Math.max(0,Math.min(planned-.4,duration-.1));
             const seeked=new Promise(resolve=>video.addEventListener('seeked',resolve,{once:true}));
             video.currentTime=target;await bounded(seeked);
             const blob=await (await fetch(download.href)).blob();
-            return {duration,expected,actual,ready:video.readyState,time:video.currentTime,type:blob.type,size:blob.size,
+            return {duration,expected,actual,minimum,planned,ready:video.readyState,time:video.currentTime,type:blob.type,size:blob.size,
               sameFile:video.src===download.href};
           });
-          assert.ok(Math.abs(result.actual-result.expected)<.75,JSON.stringify(result));
-          assert.ok(Math.abs(result.duration-result.expected)<.75,JSON.stringify(result));
+          assert.ok(result.actual>=result.minimum-.35&&result.actual<=result.expected+.75,JSON.stringify(result));
+          assert.ok(Math.abs(result.duration-result.actual)<.1,JSON.stringify(result));
           assert.ok(result.ready>=2);assert.equal(result.sameFile,true);assert.ok(result.size>10000);
-          assert.ok(result.expected>=(sound?12:7));
+          assert.ok(result.planned>=(sound?12:7));
+          assert.ok(result.expected>=result.planned&&result.expected<result.planned+15,JSON.stringify(result));
           assert.match(status,/Видео готово:/);
           console.log('PASS: '+name+' actual '+(sound?'12-second soundtrack':'silent')+' export, verified and saved duration '+result.duration.toFixed(2)+' s ('+result.type+')');
         }

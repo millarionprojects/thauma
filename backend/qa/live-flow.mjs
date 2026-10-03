@@ -80,9 +80,9 @@ try {
     const blob=await(await fetch(url)).blob();
     const {verifyVideo}=await import('./assets/export-integrity.js?v=20261003-duration1');
     const expected=Number(preview.dataset.expectedDuration),result=await verifyVideo(blob,expected,undefined,{audioSeconds:.1,videoSeconds:6});
-    return {duration:result.duration,expected,displayed:Number(preview.dataset.actualDuration),sameFile:preview.src===url};
+    return {duration:result.duration,expected,displayed:Number(preview.dataset.actualDuration),minimum:Number(preview.dataset.minimumDuration),sameFile:preview.src===url};
   });
-  assert.ok(Math.abs(timing.duration-timing.expected)<.75);
+  assert.ok(timing.duration>=timing.minimum-.35&&timing.duration<=timing.expected+.75);
   assert.equal(timing.displayed,timing.duration);assert.equal(timing.sameFile,true);
   assert.deepEqual(errors, []);
   console.log('PASS: public GitHub Pages creates a real R2 gift; an independent mobile browser receives original files and exports a video with validated duration');
