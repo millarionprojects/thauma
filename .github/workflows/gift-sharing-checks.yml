@@ -41,6 +41,10 @@ jobs:
       - name: Test creation and independent recipient
         working-directory: backend
         run: npm test
+      - name: Install independent media verification tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
       - name: Verify video timing and preserved video/audio bytes
         working-directory: backend
         run: |
